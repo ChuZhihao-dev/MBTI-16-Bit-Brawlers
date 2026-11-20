@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Type Fighter // 十六型人格大乱斗</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="game-header">
+      <div class="title-block">
+        <h1>TYPE FIGHTER</h1>
+        <span class="subtitle">十六型人格大乱斗 · MVP</span>
+      </div>
+      <div class="controls-hint">
+        <span><strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招</span>
+        <span><strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招</span>
+      </div>
+    </header>
+
+    <!-- 选人界面 -->
+    <section id="select-screen" class="screen active">
+      <div class="select-banner">
+        <div class="player-pick p1-pick">
+          <span class="badge p1">1P</span>
+          <span id="p1-selected-name">INTJ</span>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="player-pick p2-pick">
+          <span id="p2-selected-name">ENTP</span>
+          <span class="badge p2">2P</span>
+        </div>
+      </div>
+
+      <div id="roster-grid" class="roster-grid"></div>
+
+      <div class="select-actions">
+        <button id="start-btn" class="arcade-btn primary">START FIGHT</button>
+      </div>
+    </section>
+
+    <!-- 战斗界面 -->
+    <section id="fight-screen" class="screen">
+      <div class="hud">
+        <!-- 1P HUD -->
+        <div class="hud-player p1">
+          <div class="hud-top">
+            <span class="player-tag p1">1P</span>
+            <span id="p1-hud-name" class="fighter-name">INTJ</span>
+            <span id="p1-hp-text" class="hp-text">100 / 100</span>
+          </div>
+          <div class="bar-track hp-track">
+            <div id="p1-hp-bar" class="bar-fill hp-fill"></div>
+          </div>
+          <div class="hud-sub">
+            <div class="bar-track ep-track">
+              <div id="p1-ep-bar" class="bar-fill ep-fill"></div>
+            </div>
+            <span id="p1-ep-text" class="ep-text">EP 0%</span>
+            <span id="p1-cd-text" class="cd-text">SKILL READY</span>
+          </div>
+        </div>
+
+        <!-- 中央计时器 -->
+        <div class="hud-center">
+          <div id="match-timer" class="match-timer">99</div>
+        </div>
+
+        <!-- 2P HUD -->
+        <div class="hud-player p2">
+          <div class="hud-top">
+            <span id="p2-hp-text" class="hp-text">100 / 100</span>
+            <span id="p2-hud-name" class="fighter-name">ENTP</span>
+            <span class="player-tag p2">2P</span>
+          </div>
+          <div class="bar-track hp-track">
+            <div id="p2-hp-bar" class="bar-fill hp-fill"></div>
+          </div>
+          <div class="hud-sub">
+            <span id="p2-cd-text" class="cd-text">SKILL READY</span>
+            <span id="p2-ep-text" class="ep-text">EP 0%</span>
+            <div class="bar-track ep-track">
+              <div id="p2-ep-bar" class="bar-fill ep-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrapper">
+        <canvas id="game-canvas" width="960" height="540"></canvas>
+
+        <!-- 胜负结算浮层 -->
+        <div id="result-overlay" class="result-overlay hidden">
+          <div class="result-card">
+            <div class="ko-label">K.O.!</div>
+            <h2 id="winner-text">1P INTJ WINS!</h2>
+            <p id="result-subtext">逻辑闭环完成，对手已彻底破防。</p>
+            <div class="result-actions">
+              <button id="rematch-btn" class="arcade-btn primary">再来一局</button>
+              <button id="back-select-btn" class="arcade-btn">返回选人</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
