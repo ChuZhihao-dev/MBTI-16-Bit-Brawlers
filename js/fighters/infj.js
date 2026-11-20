@@ -12,12 +12,29 @@ export class INFJ extends FighterBase {
       speed: 310,
       jumpForce: 640,
       skillCdMax: 4.0,
-      spriteHeight: 112,
+      spriteHeight: 124,
       sprites: {
-        idle: { src: 'assets/fighters/infj/frames/walk_sheet.jpeg', frames: 4, useFirstFrameOnly: true },
-        walk: { src: 'assets/fighters/infj/frames/walk_sheet.jpeg', frames: 4, fps: 10 },
-        jump: { src: 'assets/fighters/infj/frames/jump_sheet.jpeg', frames: 4, fps: 8, loop: false },
-        attack: { src: 'assets/fighters/infj/frames/attack_sheet.jpeg', frames: 4, fps: 16, loop: false },
+        idle: { src: 'assets/fighters/infj/frames/idle_sheet.png', frames: 4, fps: 7, loop: true },
+        walk: { src: 'assets/fighters/infj/frames/walk_sheet.png', frames: 4, fps: 11, loop: true },
+        jump: { src: 'assets/fighters/infj/frames/jump_sheet.png', frames: 4, fps: 9, loop: false },
+        attack: {
+          src: 'assets/fighters/infj/frames/attack_sheet.png',
+          frames: 4,
+          frameDurations: [0.04, 0.04, 0.11, 0.08],
+          loop: false
+        },
+        skill: {
+          src: 'assets/fighters/infj/frames/skill_sheet.png',
+          frames: 4,
+          frameDurations: [0.06, 0.07, 0.16, 0.09],
+          loop: false
+        },
+        hit: {
+          src: 'assets/fighters/infj/frames/hit_sheet.png',
+          frames: 2,
+          frameDurations: [0.10, 0.08],
+          loop: false
+        },
         ultimate: {
           src: 'assets/fighters/infj/frames/ult_sheet.jpeg',
           cols: 4,
@@ -70,8 +87,9 @@ export class INFJ extends FighterBase {
     });
   }
 
-  // 共情吸收：1.2 秒绿色护盾，吸收伤害转化为自身 EP
+  // 共情吸收：播放 4 帧起盾动画并展开 1.2 秒球形翡翠防护罩，吸收伤害转化为自身 EP
   useSkill(_opponent, context) {
+    this.skillAnimTimer = 0.38;
     this.applyStatus('shield', 1.2);
     context.spawnFloatingText(this.getCenterX(), this.y - 16, '共情护盾!', '#34d399');
   }

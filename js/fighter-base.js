@@ -371,32 +371,61 @@ export class FighterBase {
       this.drawCustom(ctx, halfW, halfH);
     }
 
-    // 状态特效外框
+    // 球形低多边形共情防护罩（包裹整个人物且不遮挡脸部）
     if (this.statusEffects.shield > 0) {
-      const radius = Math.max(halfW, halfH) + 12 + Math.sin(performance.now() / 80) * 2;
+      const now = performance.now();
+      const radius = Math.max(halfW, halfH) + 22 + Math.sin(now / 90) * 2.5;
+      const domeY = -10;
       const isFlashing = this.shieldFlashTimer > 0;
       ctx.save();
-      // 半透明能量罩填充
-      ctx.fillStyle = isFlashing
-        ? 'rgba(250, 204, 21, 0.35)'
-        : 'rgba(16, 185, 129, 0.18)';
+      ctx.translate(0, domeY);
+
+      // 1. 径向渐变球形能量罩（中心通透不遮脸，边缘高亮）
+      const domeGrad = ctx.createRadialGradient(0, 0, radius * 0.25, 0, 0, radius);
+      if (isFlashing) {
+        domeGrad.addColorStop(0, 'rgba(254, 240, 138, 0.12)');
+        domeGrad.addColorStop(0.75, 'rgba(250, 204, 21, 0.34)');
+        domeGrad.addColorStop(1, 'rgba(245, 158, 11, 0.62)');
+      } else {
+        domeGrad.addColorStop(0, 'rgba(52, 211, 153, 0.04)');
+        domeGrad.addColorStop(0.72, 'rgba(16, 185, 129, 0.18)');
+        domeGrad.addColorStop(1, 'rgba(5, 150, 105, 0.45)');
+      }
+      ctx.fillStyle = domeGrad;
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 外圈高对比护盾边框
-      ctx.strokeStyle = isFlashing ? '#f59e0b' : '#059669';
+      // 2. 外圈高对比防护罩边框
+      ctx.strokeStyle = isFlashing ? '#f59e0b' : '#10b981';
       ctx.lineWidth = isFlashing ? 4 : 3;
       ctx.stroke();
 
-      // 旋转虚线能量环
-      ctx.rotate((performance.now() / 400) * this.facing);
-      ctx.setLineDash([10, 8]);
-      ctx.strokeStyle = isFlashing ? '#ffffff' : '#34d399';
-      ctx.lineWidth = 2;
+      // 3. 球面高光弧（玻璃感防护罩）
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(0, 0, radius - 5, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius - 6, -Math.PI * 0.82, -Math.PI * 0.42);
       ctx.stroke();
+
+      // 4. 旋转低多边形六角晶格环
+      ctx.save();
+      ctx.rotate((now / 650) * this.facing);
+      ctx.strokeStyle = isFlashing ? 'rgba(255, 255, 255, 0.85)' : 'rgba(110, 231, 183, 0.7)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const px = Math.cos(a) * (radius - 4);
+        const py = Math.sin(a) * (radius - 4);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+
       ctx.restore();
     }
 
