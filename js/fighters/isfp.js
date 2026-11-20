@@ -12,12 +12,23 @@ export class ISFP extends FighterBase {
       speed: 340,
       jumpForce: 660,
       skillCdMax: 3.4,
-      spriteHeight: 118,
+      spriteHeight: 124,
       sprites: {
-        idle: { src: 'assets/fighters/isfp/frames/walk_sheet.jpeg', frames: 4, useFirstFrameOnly: true },
-        walk: { src: 'assets/fighters/isfp/frames/walk_sheet.jpeg', frames: 4, fps: 10 },
-        jump: { src: 'assets/fighters/isfp/frames/walk_sheet.jpeg', frames: 4, useFirstFrameOnly: true },
-        attack: { src: 'assets/fighters/isfp/frames/attack_sheet.jpeg', frames: 4, fps: 16, loop: false },
+        idle: { src: 'assets/fighters/isfp/frames/idle_sheet.png', frames: 4, fps: 7, loop: true },
+        walk: { src: 'assets/fighters/isfp/frames/walk_sheet.png', frames: 4, fps: 11, loop: true },
+        jump: { src: 'assets/fighters/isfp/frames/jump_sheet.png', frames: 4, fps: 9, loop: false },
+        attack: {
+          src: 'assets/fighters/isfp/frames/attack_sheet.png',
+          frames: 4,
+          frameDurations: [0.04, 0.04, 0.11, 0.08],
+          loop: false
+        },
+        hit: {
+          src: 'assets/fighters/isfp/frames/hit_sheet.png',
+          frames: 2,
+          frameDurations: [0.10, 0.08],
+          loop: false
+        },
         ultimate: {
           src: 'assets/fighters/isfp/frames/ult_sheet.jpeg',
           cols: 4,

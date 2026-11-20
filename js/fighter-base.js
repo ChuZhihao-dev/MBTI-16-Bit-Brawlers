@@ -34,6 +34,7 @@ export class FighterBase {
     this.skillCdMax = config.skillCdMax ?? 3.5;
 
     this.attackAnimTimer = 0;
+    this.skillAnimTimer = 0;
     this.ultimateAnimTimer = 0;
     this.ultimateAnimDuration = 0;
     this.hitFlashTimer = 0;
@@ -85,6 +86,7 @@ export class FighterBase {
     this.basicCd = Math.max(0, this.basicCd - dt);
     this.skillCd = Math.max(0, this.skillCd - dt);
     this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
+    this.skillAnimTimer = Math.max(0, this.skillAnimTimer - dt);
     this.ultimateAnimTimer = Math.max(0, this.ultimateAnimTimer - dt);
     this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
     this.shieldFlashTimer = Math.max(0, this.shieldFlashTimer - dt);
@@ -143,11 +145,17 @@ export class FighterBase {
       if (input.attack && this.basicCd <= 0) {
         this.basicCd = this.basicCdMax;
         this.attackAnimTimer = 0.16;
+        if (this.spriteAnimator) {
+          this.spriteAnimator.reset('attack');
+        }
         this.useBasicAttack(opponent, context);
       }
 
       if (input.skill && this.skillCd <= 0) {
         this.skillCd = this.skillCdMax;
+        if (this.spriteAnimator && this.spriteAnimator.hasAnimation('skill')) {
+          this.spriteAnimator.reset('skill');
+        }
         this.useSkill(opponent, context);
       }
 
@@ -191,6 +199,10 @@ export class FighterBase {
     // 6. 更新当前动画状态与精灵帧
     if (this.ultimateAnimTimer > 0) {
       this.animState = 'ultimate';
+    } else if (this.hitstunTimer > 0 && this.spriteAnimator && this.spriteAnimator.hasAnimation('hit')) {
+      this.animState = 'hit';
+    } else if (this.skillAnimTimer > 0 && this.spriteAnimator && this.spriteAnimator.hasAnimation('skill')) {
+      this.animState = 'skill';
     } else if (this.attackAnimTimer > 0) {
       this.animState = 'attack';
     } else if (!this.onGround) {
@@ -244,7 +256,10 @@ export class FighterBase {
     if (this.statusEffects.superArmor <= 0) {
       this.vx = knockbackX;
       this.vy = knockbackY;
-      this.hitstunTimer = 0.16;
+      this.hitstunTimer = 0.18;
+      if (this.spriteAnimator && this.spriteAnimator.hasAnimation('hit')) {
+        this.spriteAnimator.reset('hit');
+      }
       if (knockbackY < 0) this.onGround = false;
     }
 

@@ -19,6 +19,7 @@ export class SpriteAnimator {
     const entry = {
       frames: [],
       fps: cfg.fps ?? 10,
+      frameDurations: Array.isArray(cfg.frameDurations) ? cfg.frameDurations : null,
       loop: cfg.loop ?? true,
       loaded: false
     };
@@ -124,15 +125,27 @@ export class SpriteAnimator {
     const anim = this.animations[this.currentState] || this.animations.idle;
     if (!anim || !anim.loaded || anim.frames.length <= 1) return;
 
-    const frameDuration = 1 / anim.fps;
+    const getFrameDuration = (idx) => {
+      if (anim.frameDurations && anim.frameDurations.length > 0) {
+        return anim.frameDurations[Math.min(idx, anim.frameDurations.length - 1)];
+      }
+      return 1 / anim.fps;
+    };
+
     this.timer += dt;
+    let frameDuration = getFrameDuration(this.frameIndex);
     while (this.timer >= frameDuration) {
       this.timer -= frameDuration;
       if (anim.loop) {
         this.frameIndex = (this.frameIndex + 1) % anim.frames.length;
       } else {
         this.frameIndex = Math.min(anim.frames.length - 1, this.frameIndex + 1);
+        if (this.frameIndex === anim.frames.length - 1) {
+          this.timer = 0;
+          break;
+        }
       }
+      frameDuration = getFrameDuration(this.frameIndex);
     }
   }
 
