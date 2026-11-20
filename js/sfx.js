@@ -82,6 +82,12 @@ class ArcadeSFX {
     this._tone({ freq: 784, type: 'square', duration: 0.14, gain: 0.08, delay: 0.2 });
     this._tone({ freq: 1046, type: 'triangle', duration: 0.35, gain: 0.1, delay: 0.32 });
   }
+
+  ultimate() {
+    this._tone({ freq: 196, endFreq: 784, type: 'sawtooth', duration: 0.24, gain: 0.09 });
+    this._tone({ freq: 587, endFreq: 1174, type: 'square', duration: 0.18, gain: 0.07, delay: 0.14 });
+    this._tone({ freq: 880, endFreq: 1318, type: 'triangle', duration: 0.32, gain: 0.09, delay: 0.28 });
+  }
 }
 
 export const sfx = new ArcadeSFX();

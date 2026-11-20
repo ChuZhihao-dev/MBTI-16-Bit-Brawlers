@@ -25,7 +25,8 @@ export class INFJ extends FighterBase {
           frames: 16,
           fps: 14,
           loop: false,
-          cropInset: 4
+          cropInset: 4,
+          renderHeight: 280
         }
       }
     });

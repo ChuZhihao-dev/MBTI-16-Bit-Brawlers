@@ -13,6 +13,8 @@ export class GameEngine {
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
+    this.onUltimateStart = null;
+    this.portraitCache = new Map();
   }
 
   reset() {
@@ -96,7 +98,12 @@ export class GameEngine {
       triggerShake: this.triggerShake.bind(this),
       spawnProjectile: this.spawnProjectile.bind(this),
       spawnFloatingText: this.spawnFloatingText.bind(this),
-      spawnParticles: this.spawnParticles.bind(this)
+      spawnParticles: this.spawnParticles.bind(this),
+      onUltimateStart: (fighter) => {
+        if (typeof this.onUltimateStart === 'function') {
+          this.onUltimateStart(fighter);
+        }
+      }
     };
   }
 
@@ -200,6 +207,12 @@ export class GameEngine {
     p1.draw(ctx);
     p2.draw(ctx);
 
+    // 若任一角色正在释放终极奥义，叠加完整的大招演出特写画面
+    const ultFighter = p1.ultimateAnimTimer > 0 ? p1 : (p2.ultimateAnimTimer > 0 ? p2 : null);
+    if (ultFighter) {
+      this.drawUltimateShowcase(ctx, ultFighter);
+    }
+
     // 绘制打击像素粒子
     for (const pt of this.particles) {
       ctx.save();
@@ -257,5 +270,135 @@ export class GameEngine {
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, this.groundY, this.arenaWidth, 4);
+  }
+
+  _getPortraitImage(path) {
+    if (!path) return null;
+    if (this.portraitCache.has(path)) {
+      return this.portraitCache.get(path);
+    }
+    const img = new Image();
+    img.src = path;
+    this.portraitCache.set(path, img);
+    return img;
+  }
+
+  /**
+   * 明星大乱斗风格：完整大招播放演出画面（电影遮幅 + 集中线 + 中央放大播放全帧奥义动画）
+   */
+  drawUltimateShowcase(ctx, fighter) {
+    const w = this.arenaWidth;
+    const h = this.arenaHeight;
+    const duration = Math.max(0.01, fighter.ultimateAnimDuration || 1.0);
+    const progress = Math.min(1, Math.max(0, 1 - fighter.ultimateAnimTimer / duration));
+    const cx = w / 2;
+    const cy = h / 2 - 4;
+    const now = performance.now() / 1000;
+
+    ctx.save();
+
+    // 1. 暗化舞台 + 角色主色径向聚光灯
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fillRect(0, 0, w, h);
+
+    const glow = ctx.createRadialGradient(cx, cy, 24, cx, cy, 340);
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.96)');
+    glow.addColorStop(0.45, 'rgba(255, 255, 255, 0.52)');
+    glow.addColorStop(0.75, `${fighter.color}55`);
+    glow.addColorStop(1, 'rgba(15, 23, 42, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    // 2. 动态街机放射集中线
+    ctx.save();
+    ctx.translate(cx, cy);
+    const rayCount = 24;
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2 + now * 0.9;
+      const innerR = 135 + Math.sin(now * 8 + i) * 14;
+      const outerR = 540;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+      ctx.lineTo(Math.cos(angle + 0.03) * outerR, Math.sin(angle + 0.03) * outerR);
+      ctx.lineTo(Math.cos(angle - 0.03) * outerR, Math.sin(angle - 0.03) * outerR);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.16)' : `${fighter.color}44`;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 3. 中央高清大招帧播放（优先播放角色专属 16 帧终极奥义精灵动画，无则展示官方立绘特写）
+    const ultFrame = fighter.spriteAnimator && fighter.spriteAnimator.hasAnimation('ultimate')
+      ? fighter.spriteAnimator.getCurrentFrame('ultimate')
+      : null;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (ultFrame) {
+      // 聚光圆盘底衬，确保白底亮色细节在暗背景上清晰锐利
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.strokeStyle = fighter.color;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(0, 4, 158, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.scale(fighter.facing, 1);
+      const drawH = 292;
+      const drawW = (ultFrame.width / ultFrame.height) * drawH;
+      ctx.drawImage(ultFrame, -drawW / 2, -drawH / 2 + 4, drawW, drawH);
+    } else {
+      const portrait = this._getPortraitImage(fighter.posterPath);
+      const scale = 1 + Math.sin(progress * Math.PI) * 0.08;
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = fighter.color;
+      ctx.lineWidth = 6;
+      ctx.fillRect(-102, -134, 204, 268);
+      ctx.strokeRect(-102, -134, 204, 268);
+
+      if (portrait && portrait.complete && portrait.naturalWidth > 0) {
+        ctx.drawImage(portrait, -94, -126, 188, 252);
+      }
+    }
+    ctx.restore();
+
+    // 4. 电影上下黑边遮幅与奥义横幅
+    const topBarH = 44;
+    const botBarH = 54;
+    ctx.fillStyle = '#090b12';
+    ctx.fillRect(0, 0, w, topBarH);
+    ctx.fillRect(0, h - botBarH, w, botBarH);
+
+    // 彩色装饰分割线
+    ctx.fillStyle = fighter.color;
+    ctx.fillRect(0, topBarH - 3, w, 3);
+    ctx.fillRect(0, h - botBarH, w, 3);
+
+    // 顶部提示文字
+    ctx.fillStyle = '#facc15';
+    ctx.font = '900 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ FINAL SMASH // 终极奥义完整演出 ★', cx, 28);
+
+    // 底部角色与奥义名
+    const tag = fighter.playerIndex === 1 ? '1P' : '2P';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 20px monospace';
+    ctx.fillText(`${tag} ${fighter.name} · 【${fighter.ultimateName}】`, cx, h - 24);
+
+    // 底部演出播放进度条
+    const barW = 360;
+    const barH = 6;
+    const barX = cx - barW / 2;
+    const barY = h - 13;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(barX, barY, barW * progress, barH);
+
+    ctx.restore();
   }
 }

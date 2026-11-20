@@ -31,9 +31,15 @@ const winnerText = document.getElementById('winner-text');
 const resultSubtext = document.getElementById('result-subtext');
 const rematchBtn = document.getElementById('rematch-btn');
 const backSelectBtn = document.getElementById('back-select-btn');
+const fillEpBtn = document.getElementById('fill-ep-btn');
+const resetRoundBtn = document.getElementById('reset-round-btn');
+const fightBackSelectBtn = document.getElementById('fight-back-select-btn');
 
 const canvas = document.getElementById('game-canvas');
 const engine = new GameEngine(canvas);
+engine.onUltimateStart = () => {
+  sfx.ultimate();
+};
 
 let selectedP1 = 'intj';
 let selectedP2 = 'infj';
@@ -565,20 +571,18 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
 
   if (gameState === 'FIGHT') {
-    matchTimer = Math.max(0, matchTimer - dt);
+    const someoneInUlt = p1.ultimateAnimTimer > 0 || p2.ultimateAnimTimer > 0;
+    if (!someoneInUlt) {
+      matchTimer = Math.max(0, matchTimer - dt);
+    }
     const p1Input = getPlayerInput(1);
     const p2Input = getPlayerInput(2);
     engine.update(dt, p1, p2, p1Input, p2Input);
     engine.render(p1, p2);
     updateHud();
 
-    if (p1.hp <= 0 && p2.hp <= 0) {
-      finishMatch('DRAW GAME!', '双方同时陷入深度内耗。', null);
-    } else if (p2.hp <= 0) {
-      finishMatch(`1P ${p1.name} WINS!`, '完美压制，对手已彻底破防。', selectedP1);
-    } else if (p1.hp <= 0) {
-      finishMatch(`2P ${p2.name} WINS!`, '完美压制，对手已彻底破防。', selectedP2);
-    } else if (matchTimer <= 0) {
+    // 已移除血量见底即结束的效果，确保完整大招画面可不受中断播放；仅在非大招期间且时间耗尽时结算
+    if (matchTimer <= 0 && !someoneInUlt) {
       if (p1.hp === p2.hp) {
         finishMatch('TIME UP · DRAW!', '旗鼓相当的性格对决！', null);
       } else {
@@ -596,6 +600,26 @@ function gameLoop(timestamp) {
 startBtn.addEventListener('click', launchMatchWithVsSplash);
 rematchBtn.addEventListener('click', launchMatchWithVsSplash);
 backSelectBtn.addEventListener('click', () => {
+  sfx.tick();
+  gameState = 'SELECT';
+  renderSelectScreen();
+  switchScreen(selectScreen);
+});
+
+fillEpBtn.addEventListener('click', () => {
+  if (!p1 || !p2) return;
+  p1.ep = p1.maxEp;
+  p2.ep = p2.maxEp;
+  sfx.confirm();
+  updateHud();
+});
+
+resetRoundBtn.addEventListener('click', () => {
+  sfx.swap();
+  startMatch();
+});
+
+fightBackSelectBtn.addEventListener('click', () => {
   sfx.tick();
   gameState = 'SELECT';
   renderSelectScreen();

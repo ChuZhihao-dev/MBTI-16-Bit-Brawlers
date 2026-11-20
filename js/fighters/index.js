@@ -2,13 +2,15 @@ import { INTJ } from './intj.js';
 import { INFJ } from './infj.js';
 import { ENTP } from './entp.js';
 import { ENFP } from './enfp.js';
+import { ISFP } from './isfp.js';
 import { GenericMBTIFighter, MBTI_16_DATA } from './roster-16.js';
 
 const CUSTOM_CLASSES = {
   intj: INTJ,
   infj: INFJ,
   entp: ENTP,
-  enfp: ENFP
+  enfp: ENFP,
+  isfp: ISFP
 };
 
 export const FIGHTER_ROSTER = MBTI_16_DATA.map((meta) => {
@@ -30,5 +32,9 @@ export function getFighterMeta(id) {
 
 export function createFighter(id, config) {
   const entry = getFighterMeta(id);
-  return new entry.FighterClass(config);
+  return new entry.FighterClass({
+    ...config,
+    ultimateName: entry.moves?.ultimate?.name || '终极奥义',
+    posterPath: entry.posterPath
+  });
 }

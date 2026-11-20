@@ -6,6 +6,7 @@ export class FighterBase {
     this.id = config.id || 'base';
     this.name = config.name || 'MBTI';
     this.title = config.title || '基础格斗家';
+    this.ultimateName = config.ultimateName || '终极奥义';
     this.color = config.color || '#94a3b8';
 
     // 尺寸与位置
@@ -34,14 +35,16 @@ export class FighterBase {
 
     this.attackAnimTimer = 0;
     this.ultimateAnimTimer = 0;
+    this.ultimateAnimDuration = 0;
     this.hitFlashTimer = 0;
     this.shieldFlashTimer = 0;
     this.hitstunTimer = 0;
     this.coyoteTimer = 0;
     this.jumpBufferTimer = 0;
     this.animState = 'idle';
+    this.spriteHeight = config.spriteHeight ?? 118;
     this.spriteAnimator = config.sprites
-      ? new SpriteAnimator(config.sprites, config.spriteHeight ?? 118)
+      ? new SpriteAnimator(config.sprites, this.spriteHeight)
       : null;
 
     // 统一状态效果计时器（秒）
@@ -105,7 +108,8 @@ export class FighterBase {
       }
     }
 
-    const canAct = this.statusEffects.exhausted <= 0 && this.hitstunTimer <= 0;
+    const inUltimate = this.ultimateAnimTimer > 0;
+    const canAct = !inUltimate && this.statusEffects.exhausted <= 0 && this.hitstunTimer <= 0;
     const canMove = canAct && this.statusEffects.rooted <= 0;
 
     // 2. 水平移动（带起步跟手性与受击击退保留）
@@ -149,7 +153,18 @@ export class FighterBase {
 
       if (input.ultimate && this.ep >= this.maxEp) {
         this.ep = 0;
+        this.vx = 0;
         this.useUltimate(opponent, context);
+        if (this.ultimateAnimTimer <= 0) {
+          this.ultimateAnimTimer = 1.05;
+        }
+        this.ultimateAnimDuration = this.ultimateAnimTimer;
+        if (this.spriteAnimator) {
+          this.spriteAnimator.reset('ultimate');
+        }
+        if (context.onUltimateStart) {
+          context.onUltimateStart(this);
+        }
       }
     }
 
@@ -195,8 +210,6 @@ export class FighterBase {
    * 通用受击处理：处理无敌、护盾、霸体、击退、顿帧与震屏
    */
   takeDamage(amount, knockbackX, knockbackY, attacker, context, hitLabel = '') {
-    if (this.hp <= 0) return false;
-
     if (this.statusEffects.invincible > 0) {
       context.spawnFloatingText(this.getCenterX(), this.y - 14, 'MISS!', '#a855f7');
       return false;
@@ -312,11 +325,16 @@ export class FighterBase {
       if (this.hitFlashTimer > 0) {
         ctx.filter = 'brightness(2.5)';
       }
+      // 若该动作帧使用高清 renderHeight，则在普通舞台上按 spriteHeight 等比显示
+      const drawH = Math.min(spriteFrame.height, this.spriteHeight);
+      const drawW = (spriteFrame.width / spriteFrame.height) * drawH;
       // 脚底对齐碰撞盒底部 (halfH)
       ctx.drawImage(
         spriteFrame,
-        -spriteFrame.width / 2,
-        halfH - spriteFrame.height + 6
+        -drawW / 2,
+        halfH - drawH + 6,
+        drawW,
+        drawH
       );
       ctx.filter = 'none';
     } else {

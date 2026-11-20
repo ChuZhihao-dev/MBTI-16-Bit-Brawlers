@@ -34,7 +34,7 @@ export class SpriteAnimator {
       const inset = cfg.cropInset ?? 0;
       const cropW = Math.max(1, srcFrameW - inset * 2);
       const cropH = Math.max(1, srcFrameH - inset * 2);
-      const dstH = this.targetHeight;
+      const dstH = cfg.renderHeight ?? this.targetHeight;
       const dstW = Math.max(1, Math.round((cropW / cropH) * dstH));
 
       const sliceCount = cfg.useFirstFrameOnly ? 1 : totalFrames;
@@ -134,6 +134,19 @@ export class SpriteAnimator {
         this.frameIndex = Math.min(anim.frames.length - 1, this.frameIndex + 1);
       }
     }
+  }
+
+  reset(state) {
+    if (state) {
+      this.currentState = state;
+    }
+    this.frameIndex = 0;
+    this.timer = 0;
+  }
+
+  hasAnimation(state) {
+    const anim = this.animations[state];
+    return Boolean(anim && anim.loaded && anim.frames.length > 0);
   }
 
   getCurrentFrame(state) {

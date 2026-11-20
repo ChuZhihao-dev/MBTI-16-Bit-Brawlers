@@ -372,7 +372,7 @@ export const MBTI_16_DATA = [
     moves: {
       basic: { name: '颜料飞溅', desc: '发射绚丽的远程色彩弹。' },
       skill: { name: '灵感爆发', desc: '投掷高饱和度艺术冲击波。' },
-      ultimate: { name: '行为艺术', desc: '从天而降的巨型画作终结对手。' }
+      ultimate: { name: '行为艺术', desc: '挥笔绘出彩虹灵犬破画扑击，随后炸裂为漫天几何色块终结对手。' }
     }
   },
   {
