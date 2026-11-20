@@ -16,38 +16,74 @@ export class ENTP extends FighterBase {
     });
   }
 
-  // 快速反驳：高频发射小型文字气泡
+  // 快速反驳：高频交替发射文字气泡
   useBasicAttack(_opponent, context) {
+    const words = ['但是', '未必', '真的?'];
+    const word = words[Math.floor(Math.random() * words.length)];
     context.spawnProjectile({
       owner: this,
-      x: this.facing === 1 ? this.x + this.width : this.x - 24,
-      y: this.y + 20,
-      width: 24,
-      height: 18,
+      x: this.facing === 1 ? this.x + this.width : this.x - 32,
+      y: this.y + 18,
+      width: 32,
+      height: 20,
       vx: this.facing * 560,
-      lifetime: 0.7,
+      lifetime: 0.75,
       damage: 6,
       knockbackX: 140,
       knockbackY: -60,
-      color: '#e879f9',
-      hitLabel: '未必吧!',
+      color: '#a855f7',
+      hitLabel: `${word}!`,
       draw(ctx) {
-        ctx.fillStyle = '#f5d0fe';
+        ctx.fillStyle = '#faf5ff';
+        ctx.strokeStyle = '#7e22ce';
+        ctx.lineWidth = 2;
         ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
         ctx.fillStyle = '#581c87';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('但是', this.x + 2, this.y + 13);
+        ctx.fillText(word, this.x + 4, this.y + 14);
       }
     });
   }
 
-  // 话题转移：向后瞬移一段距离
+  // 话题转移：向后瞬移并在原地留下嘲讽假人
   useSkill(_opponent, context) {
+    const decoyX = this.x;
+    const decoyY = this.y;
+    const decoyW = this.width;
+    const decoyH = this.height;
+
     this.x = Math.max(
       16,
       Math.min(context.arenaWidth - this.width - 16, this.x - this.facing * 140)
     );
-    context.spawnFloatingText(this.getCenterX(), this.y - 16, '话题转移!', '#e879f9');
+    context.spawnFloatingText(this.getCenterX(), this.y - 16, '话题转移!', '#a855f7');
+
+    context.spawnProjectile({
+      owner: this,
+      x: decoyX,
+      y: decoyY,
+      width: decoyW,
+      height: decoyH,
+      lifetime: 3.0,
+      onHit(target, ctx) {
+        target.takeDamage(10, -this.owner.facing * 240, -160, this.owner, ctx, '被钓鱼了!');
+      },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.65;
+        ctx.fillStyle = '#c084fc';
+        ctx.strokeStyle = '#581c87';
+        ctx.lineWidth = 2;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('假人', this.x + this.width / 2, this.y + 38);
+        ctx.restore();
+      }
+    });
   }
 
   // 【杠精领域】：全屏问号弹幕 + 混乱（左右键反转）

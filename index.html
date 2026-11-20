@@ -11,46 +11,143 @@
     <header class="game-header">
       <div class="title-block">
         <h1>TYPE FIGHTER</h1>
-        <span class="subtitle">十六型人格大乱斗 · MVP</span>
+        <span class="subtitle">十六型人格大乱斗 · 16-BIT BRAWLERS</span>
       </div>
-      <div class="controls-hint">
-        <span><strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招</span>
-        <span><strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招</span>
+      <div class="header-right">
+        <div class="controls-hint">
+          <span><strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招</span>
+          <span><strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招</span>
+        </div>
+        <button id="sfx-toggle-btn" class="sfx-btn" type="button" title="切换街机音效">🔊 音效</button>
       </div>
     </header>
 
-    <!-- 选人界面 -->
-    <section id="select-screen" class="screen active">
-      <div class="select-banner">
-        <div class="player-pick p1-pick">
-          <span class="badge p1">1P</span>
-          <span id="p1-selected-name">INTJ</span>
-        </div>
-        <div class="vs-badge">VS</div>
-        <div class="player-pick p2-pick">
-          <span id="p2-selected-name">ENTP</span>
-          <span class="badge p2">2P</span>
-        </div>
-      </div>
+    <!-- 1. 封面标题界面 -->
+    <section id="cover-screen" class="screen active">
+      <div class="cover-hero">
+        <div class="cover-bg-grid" aria-hidden="true"></div>
+        <div class="cover-badge">★ 16-BIT PERSONALITY SMASH ARCADE ★</div>
+        <h2 class="cover-title">
+          <span class="cover-title-main">十六型人格大乱斗</span>
+          <span class="cover-title-sub">SUPER MBTI BRAWLERS</span>
+        </h2>
+        <p class="cover-tagline">
+          刻板印象具象化 · 明星大乱斗式选人 · 双人同屏快节奏格斗
+        </p>
 
-      <div id="roster-grid" class="roster-grid"></div>
+        <div class="cover-marquee-wrap" aria-hidden="true">
+          <div id="cover-marquee" class="cover-marquee"></div>
+        </div>
 
-      <div class="select-actions">
-        <button id="start-btn" class="arcade-btn primary">START FIGHT</button>
+        <div class="cover-factions">
+          <button class="faction-pill nt" data-group="NT" type="button"><strong>NT 分析家</strong><span>INTJ · INTP · ENTJ · ENTP</span></button>
+          <button class="faction-pill nf" data-group="NF" type="button"><strong>NF 外交家</strong><span>INFJ · INFP · ENFJ · ENFP</span></button>
+          <button class="faction-pill sj" data-group="SJ" type="button"><strong>SJ 守护者</strong><span>ISTJ · ISFJ · ESTJ · ESFJ</span></button>
+          <button class="faction-pill sp" data-group="SP" type="button"><strong>SP 探险家</strong><span>ISTP · ISFP · ESTP · ESFP</span></button>
+        </div>
+
+        <div class="cover-actions">
+          <button id="enter-select-btn" class="arcade-btn primary pulse-btn">PRESS START · 进入选人</button>
+          <div class="cover-key-hint">按 <kbd>Enter</kbd> 或 <kbd>Space</kbd> 快速开始 · 点击阵营卡片直达筛选</div>
+        </div>
+
+        <div class="cover-footer">
+          <span>本地双人对战 · 顿帧打击感 · 街机合成音效 · 16型全员集结</span>
+        </div>
       </div>
     </section>
 
-    <!-- 战斗界面 -->
+    <!-- 2. 全 16 人格海报选人界面 -->
+    <section id="select-screen" class="screen">
+      <div class="select-toolbar">
+        <div class="slot-switcher">
+          <span class="toolbar-label">当前选人：</span>
+          <button id="slot-p1-btn" class="slot-btn p1 active" data-slot="1" type="button">1P 选手</button>
+          <button id="slot-p2-btn" class="slot-btn p2" data-slot="2" type="button">2P 选手</button>
+          <span class="toolbar-divider"></span>
+          <button id="random-pick-btn" class="tool-btn" type="button" title="随机为当前选手选人 (R)">🎲 随机</button>
+          <button id="random-both-btn" class="tool-btn" type="button" title="双方全随机">⚡ 全随机</button>
+          <button id="swap-pick-btn" class="tool-btn" type="button" title="互换 1P / 2P">⇄ 互换</button>
+        </div>
+
+        <div id="group-filter" class="group-filter">
+          <button class="filter-btn active" data-group="ALL" type="button">全部 (16)</button>
+          <button class="filter-btn nt" data-group="NT" type="button">NT 紫</button>
+          <button class="filter-btn nf" data-group="NF" type="button">NF 绿</button>
+          <button class="filter-btn sj" data-group="SJ" type="button">SJ 蓝</button>
+          <button class="filter-btn sp" data-group="SP" type="button">SP 黄</button>
+        </div>
+      </div>
+
+      <!-- 1P / 2P 人物海报与详细介绍展板 -->
+      <div class="spotlight-row">
+        <div id="p1-spotlight" class="spotlight-card p1 active-slot" data-slot="1" title="点击切换为 1P 选人"></div>
+        <div class="spotlight-vs">
+          <span>VS</span>
+        </div>
+        <div id="p2-spotlight" class="spotlight-card p2" data-slot="2" title="点击切换为 2P 选人"></div>
+      </div>
+
+      <!-- 16 型人格海报选择网格 -->
+      <div id="roster-grid" class="poster-grid"></div>
+
+      <div class="select-actions">
+        <button id="back-cover-btn" class="arcade-btn" type="button">返回封面</button>
+        <div class="ready-banner">
+          <span class="ready-dot"></span>
+          <span>READY TO FIGHT!</span>
+        </div>
+        <button id="start-btn" class="arcade-btn primary smash-start-btn" type="button">START FIGHT · 开始对决</button>
+      </div>
+      <div class="select-kbd-hint">
+        <span><kbd>←</kbd><kbd>→</kbd> 移动光标</span>
+        <span><kbd>Enter</kbd> 锁定角色</span>
+        <span><kbd>1</kbd>/<kbd>2</kbd> 切换 1P/2P</span>
+        <span><kbd>R</kbd> 随机</span>
+        <span><kbd>Space</kbd> 开战</span>
+      </div>
+    </section>
+
+    <!-- 2.5 VS 开场过场 -->
+    <div id="vs-overlay" class="vs-overlay hidden" aria-hidden="true">
+      <div class="vs-stage">
+        <div class="vs-side vs-p1">
+          <div class="vs-portrait-wrap"><img id="vs-p1-img" alt="1P" /></div>
+          <div class="vs-meta">
+            <span class="vs-tag p1">1P CHALLENGER</span>
+            <h3 id="vs-p1-name">INTJ</h3>
+            <p id="vs-p1-title">建筑师</p>
+          </div>
+        </div>
+        <div class="vs-emblem">
+          <div class="vs-bolt">VS</div>
+          <div id="vs-countdown" class="vs-countdown">READY!</div>
+        </div>
+        <div class="vs-side vs-p2">
+          <div class="vs-portrait-wrap"><img id="vs-p2-img" alt="2P" /></div>
+          <div class="vs-meta">
+            <span class="vs-tag p2">2P CHALLENGER</span>
+            <h3 id="vs-p2-name">INFJ</h3>
+            <p id="vs-p2-title">提倡者</p>
+          </div>
+        </div>
+      </div>
+      <div class="vs-skip-hint">按 Space 或点击任意处跳过</div>
+    </div>
+
+    <!-- 3. 战斗界面 -->
     <section id="fight-screen" class="screen">
       <div class="hud">
         <!-- 1P HUD -->
-        <div class="hud-player p1">
+        <div id="hud-p1" class="hud-player p1">
           <div class="hud-top">
+            <img id="p1-hud-avatar" class="hud-avatar" alt="1P" />
             <span class="player-tag p1">1P</span>
             <span id="p1-hud-name" class="fighter-name">INTJ</span>
             <span id="p1-hp-text" class="hp-text">100 / 100</span>
           </div>
           <div class="bar-track hp-track">
+            <div id="p1-hp-trail" class="bar-trail"></div>
             <div id="p1-hp-bar" class="bar-fill hp-fill"></div>
           </div>
           <div class="hud-sub">
@@ -68,13 +165,15 @@
         </div>
 
         <!-- 2P HUD -->
-        <div class="hud-player p2">
+        <div id="hud-p2" class="hud-player p2">
           <div class="hud-top">
             <span id="p2-hp-text" class="hp-text">100 / 100</span>
             <span id="p2-hud-name" class="fighter-name">ENTP</span>
             <span class="player-tag p2">2P</span>
+            <img id="p2-hud-avatar" class="hud-avatar" alt="2P" />
           </div>
           <div class="bar-track hp-track">
+            <div id="p2-hp-trail" class="bar-trail"></div>
             <div id="p2-hp-bar" class="bar-fill hp-fill"></div>
           </div>
           <div class="hud-sub">
@@ -94,6 +193,9 @@
         <div id="result-overlay" class="result-overlay hidden">
           <div class="result-card">
             <div class="ko-label">K.O.!</div>
+            <div class="winner-portrait-wrap">
+              <img id="winner-portrait" alt="Winner" />
+            </div>
             <h2 id="winner-text">1P INTJ WINS!</h2>
             <p id="result-subtext">逻辑闭环完成，对手已彻底破防。</p>
             <div class="result-actions">

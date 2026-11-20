@@ -9,6 +9,7 @@ export class GameEngine {
 
     this.projectiles = [];
     this.floatingTexts = [];
+    this.particles = [];
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
@@ -17,6 +18,7 @@ export class GameEngine {
   reset() {
     this.projectiles = [];
     this.floatingTexts = [];
+    this.particles = [];
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
@@ -54,16 +56,33 @@ export class GameEngine {
     });
   }
 
-  spawnFloatingText(x, y, text, color = '#ffffff') {
+  spawnFloatingText(x, y, text, color = '#0f172a') {
     this.floatingTexts.push({
       x,
       y,
       text,
       color,
-      vy: -55,
+      vy: -62,
       lifetime: 0.85,
       maxLifetime: 0.85
     });
+  }
+
+  spawnParticles(x, y, color = '#f97316', count = 8) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 90 + Math.random() * 240;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 80,
+        size: 4 + Math.random() * 5,
+        color,
+        lifetime: 0.28 + Math.random() * 0.22,
+        maxLifetime: 0.5
+      });
+    }
   }
 
   createContext() {
@@ -76,7 +95,8 @@ export class GameEngine {
       triggerHitstop: this.triggerHitstop.bind(this),
       triggerShake: this.triggerShake.bind(this),
       spawnProjectile: this.spawnProjectile.bind(this),
-      spawnFloatingText: this.spawnFloatingText.bind(this)
+      spawnFloatingText: this.spawnFloatingText.bind(this),
+      spawnParticles: this.spawnParticles.bind(this)
     };
   }
 
@@ -137,6 +157,18 @@ export class GameEngine {
         this.floatingTexts.splice(i, 1);
       }
     }
+
+    // 更新打击粒子
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.lifetime -= dt;
+      pt.vy += 680 * dt;
+      pt.x += pt.vx * dt;
+      pt.y += pt.vy * dt;
+      if (pt.lifetime <= 0) {
+        this.particles.splice(i, 1);
+      }
+    }
   }
 
   render(p1, p2) {
@@ -168,15 +200,25 @@ export class GameEngine {
     p1.draw(ctx);
     p2.draw(ctx);
 
-    // 绘制浮动文字特效
+    // 绘制打击像素粒子
+    for (const pt of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, pt.lifetime / pt.maxLifetime);
+      ctx.fillStyle = pt.color;
+      ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+      ctx.restore();
+    }
+
+    // 绘制浮动文字特效（深色描边确保白底高对比可读）
     for (const ft of this.floatingTexts) {
       const alpha = Math.max(0, ft.lifetime / ft.maxLifetime);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.font = 'bold 16px monospace';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#090b12';
-      ctx.fillText(ft.text, ft.x + 2, ft.y + 2);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0f172a';
+      ctx.strokeText(ft.text, ft.x, ft.y);
       ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
@@ -186,15 +228,15 @@ export class GameEngine {
   }
 
   drawArena(ctx) {
-    // 夜空渐变背景
+    // 明亮白底格斗舞台
     const grad = ctx.createLinearGradient(0, 0, 0, this.arenaHeight);
-    grad.addColorStop(0, '#0f1326');
-    grad.addColorStop(1, '#1e2445');
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#f1f5f9');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.arenaWidth, this.arenaHeight);
 
-    // 复古网格装饰
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+    // 浅灰网格辅助线
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.06)';
     ctx.lineWidth = 1;
     for (let x = 0; x < this.arenaWidth; x += 48) {
       ctx.beginPath();
@@ -210,10 +252,10 @@ export class GameEngine {
     }
 
     // 擂台地面
-    ctx.fillStyle = '#181c33';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillRect(0, this.groundY, this.arenaWidth, this.arenaHeight - this.groundY);
 
-    ctx.fillStyle = '#7c3aed';
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, this.groundY, this.arenaWidth, 4);
   }
 }

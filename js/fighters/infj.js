@@ -31,19 +31,42 @@ export class INFJ extends FighterBase {
     });
   }
 
-  // 礼貌微笑：中距离法杖挥击
-  useBasicAttack(opponent, context) {
+  // 礼貌微笑：法杖远程发射翡翠光球
+  useBasicAttack(_opponent, context) {
     this.attackAnimTimer = 0.28;
-    const reach = 58;
-    const hitbox = {
-      x: this.facing === 1 ? this.x + this.width : this.x - reach,
-      y: this.y + 10,
-      width: reach,
-      height: 52
-    };
-    if (context.rectsOverlap(hitbox, opponent.getHurtbox())) {
-      opponent.takeDamage(9, this.facing * 230, -150, this, context, '礼貌微笑:)');
-    }
+    const orbSize = 22;
+    context.spawnProjectile({
+      owner: this,
+      x: this.facing === 1 ? this.x + this.width + 4 : this.x - orbSize - 4,
+      y: this.y + 18,
+      width: orbSize,
+      height: orbSize,
+      vx: this.facing * 540,
+      lifetime: 0.9,
+      damage: 9,
+      knockbackX: 210,
+      knockbackY: -120,
+      color: '#10b981',
+      hitLabel: '礼貌微笑:)',
+      draw(ctx) {
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        ctx.save();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#34d399';
+        ctx.strokeStyle = '#065f46';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
   }
 
   // 共情吸收：1.2 秒绿色护盾，吸收伤害转化为自身 EP
@@ -83,20 +106,5 @@ export class INFJ extends FighterBase {
       },
       draw() {}
     });
-  }
-
-  drawCustom(ctx, halfW, halfH) {
-    // 翡翠兜帽尖角
-    ctx.fillStyle = '#059669';
-    ctx.beginPath();
-    ctx.moveTo(-halfW, -halfH);
-    ctx.lineTo(halfW, -halfH);
-    ctx.lineTo(-halfW - 10, -halfH - 14);
-    ctx.closePath();
-    ctx.fill();
-
-    // 微笑假面眼睛
-    ctx.fillStyle = '#ecfdf5';
-    ctx.fillRect(4, -halfH + 18, 12, 8);
   }
 }

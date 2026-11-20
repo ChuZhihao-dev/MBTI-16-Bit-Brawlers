@@ -35,6 +35,10 @@ export class FighterBase {
     this.attackAnimTimer = 0;
     this.ultimateAnimTimer = 0;
     this.hitFlashTimer = 0;
+    this.shieldFlashTimer = 0;
+    this.hitstunTimer = 0;
+    this.coyoteTimer = 0;
+    this.jumpBufferTimer = 0;
     this.animState = 'idle';
     this.spriteAnimator = config.sprites
       ? new SpriteAnimator(config.sprites, config.spriteHeight ?? 118)
@@ -80,6 +84,20 @@ export class FighterBase {
     this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
     this.ultimateAnimTimer = Math.max(0, this.ultimateAnimTimer - dt);
     this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
+    this.shieldFlashTimer = Math.max(0, this.shieldFlashTimer - dt);
+    this.hitstunTimer = Math.max(0, this.hitstunTimer - dt);
+
+    if (this.onGround) {
+      this.coyoteTimer = 0.09;
+    } else {
+      this.coyoteTimer = Math.max(0, this.coyoteTimer - dt);
+    }
+
+    if (input.up) {
+      this.jumpBufferTimer = 0.1;
+    } else {
+      this.jumpBufferTimer = Math.max(0, this.jumpBufferTimer - dt);
+    }
 
     for (const key of Object.keys(this.statusEffects)) {
       if (this.statusEffects[key] > 0) {
@@ -87,10 +105,10 @@ export class FighterBase {
       }
     }
 
-    const canAct = this.statusEffects.exhausted <= 0;
+    const canAct = this.statusEffects.exhausted <= 0 && this.hitstunTimer <= 0;
     const canMove = canAct && this.statusEffects.rooted <= 0;
 
-    // 2. 水平移动（混乱时反转左右）
+    // 2. 水平移动（带起步跟手性与受击击退保留）
     if (canMove) {
       let moveDir = 0;
       if (input.left) moveDir -= 1;
@@ -101,18 +119,19 @@ export class FighterBase {
         this.vx = moveDir * this.speed;
         this.facing = moveDir;
       } else {
-        // 地面摩擦阻尼（保留部分击退惯性）
-        this.vx *= Math.pow(0.001, dt);
-        if (Math.abs(this.vx) < 8) this.vx = 0;
+        this.vx *= Math.pow(0.0002, dt);
+        if (Math.abs(this.vx) < 10) this.vx = 0;
       }
 
-      // 跳跃
-      if (input.up && this.onGround) {
+      // 跳跃（支持土狼时间与输入缓冲）
+      if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
         this.vy = -this.jumpForce;
         this.onGround = false;
+        this.coyoteTimer = 0;
+        this.jumpBufferTimer = 0;
       }
     } else {
-      this.vx *= Math.pow(0.01, dt);
+      this.vx *= Math.pow(0.03, dt);
     }
 
     // 3. 动作触发（普攻 / 特技 / 终极奥义）
@@ -186,7 +205,19 @@ export class FighterBase {
     if (this.statusEffects.shield > 0) {
       const absorbedEp = Math.round(amount * 1.5);
       this.gainEp(absorbedEp);
-      context.spawnFloatingText(this.getCenterX(), this.y - 16, `共情吸收 +${absorbedEp}EP`, '#34d399');
+      this.shieldFlashTimer = 0.14;
+      context.triggerHitstop(2);
+      context.triggerShake(3, 0.08);
+      if (context.spawnParticles) {
+        context.spawnParticles(this.getCenterX(), this.getCenterY(), '#10b981', 8);
+      }
+      // 近身攻击被格挡时产生轻微弹反击退
+      if (attacker && Math.abs(attacker.getCenterX() - this.getCenterX()) < 105) {
+        const pushDir = attacker.getCenterX() >= this.getCenterX() ? 1 : -1;
+        attacker.vx = pushDir * 200;
+      }
+      const shieldText = this.id === 'infj' ? `共情吸收 +${absorbedEp}EP` : `护盾吸收 +${absorbedEp}EP`;
+      context.spawnFloatingText(this.getCenterX(), this.y - 16, shieldText, '#10b981');
       return false;
     }
 
@@ -200,11 +231,20 @@ export class FighterBase {
     if (this.statusEffects.superArmor <= 0) {
       this.vx = knockbackX;
       this.vy = knockbackY;
+      this.hitstunTimer = 0.16;
       if (knockbackY < 0) this.onGround = false;
     }
 
     context.triggerHitstop(amount >= 18 ? 5 : 3);
     context.triggerShake(amount >= 18 ? 9 : 4, 0.14);
+    if (context.spawnParticles) {
+      context.spawnParticles(
+        this.getCenterX(),
+        this.getCenterY(),
+        attacker ? attacker.color : '#f97316',
+        amount >= 18 ? 14 : 7
+      );
+    }
 
     if (hitLabel) {
       context.spawnFloatingText(this.getCenterX(), this.y - 16, hitLabel, '#fde047');
@@ -300,11 +340,31 @@ export class FighterBase {
 
     // 状态特效外框
     if (this.statusEffects.shield > 0) {
-      ctx.strokeStyle = '#34d399';
-      ctx.lineWidth = 3;
+      const radius = Math.max(halfW, halfH) + 12 + Math.sin(performance.now() / 80) * 2;
+      const isFlashing = this.shieldFlashTimer > 0;
+      ctx.save();
+      // 半透明能量罩填充
+      ctx.fillStyle = isFlashing
+        ? 'rgba(250, 204, 21, 0.35)'
+        : 'rgba(16, 185, 129, 0.18)';
       ctx.beginPath();
-      ctx.arc(0, 0, Math.max(halfW, halfH) + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 外圈高对比护盾边框
+      ctx.strokeStyle = isFlashing ? '#f59e0b' : '#059669';
+      ctx.lineWidth = isFlashing ? 4 : 3;
       ctx.stroke();
+
+      // 旋转虚线能量环
+      ctx.rotate((performance.now() / 400) * this.facing);
+      ctx.setLineDash([10, 8]);
+      ctx.strokeStyle = isFlashing ? '#ffffff' : '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (this.statusEffects.invincible > 0) {
