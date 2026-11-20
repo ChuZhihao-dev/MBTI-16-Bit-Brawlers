@@ -26,19 +26,36 @@ export class SpriteAnimator {
 
     const img = new Image();
     img.onload = () => {
-      const totalFrames = cfg.frames ?? 4;
-      const srcFrameW = Math.floor(img.width / totalFrames);
-      const srcFrameH = img.height;
+      const cols = cfg.cols ?? cfg.frames ?? 4;
+      const rows = cfg.rows ?? 1;
+      const totalFrames = cfg.frames ?? cols * rows;
+      const srcFrameW = Math.floor(img.width / cols);
+      const srcFrameH = Math.floor(img.height / rows);
+      const inset = cfg.cropInset ?? 0;
+      const cropW = Math.max(1, srcFrameW - inset * 2);
+      const cropH = Math.max(1, srcFrameH - inset * 2);
       const dstH = this.targetHeight;
-      const dstW = Math.max(1, Math.round((srcFrameW / srcFrameH) * dstH));
+      const dstW = Math.max(1, Math.round((cropW / cropH) * dstH));
 
       const sliceCount = cfg.useFirstFrameOnly ? 1 : totalFrames;
       for (let i = 0; i < sliceCount; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
         const off = document.createElement('canvas');
         off.width = dstW;
         off.height = dstH;
         const octx = off.getContext('2d');
-        octx.drawImage(img, i * srcFrameW, 0, srcFrameW, srcFrameH, 0, 0, dstW, dstH);
+        octx.drawImage(
+          img,
+          col * srcFrameW + inset,
+          row * srcFrameH + inset,
+          cropW,
+          cropH,
+          0,
+          0,
+          dstW,
+          dstH
+        );
 
         if (cfg.removeWhiteBg !== false) {
           this.removeBorderWhiteBg(octx, dstW, dstH);

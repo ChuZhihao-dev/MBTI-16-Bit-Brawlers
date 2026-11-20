@@ -17,7 +17,16 @@ export class INFJ extends FighterBase {
         idle: { src: 'assets/fighters/infj/frames/walk_sheet.jpeg', frames: 4, useFirstFrameOnly: true },
         walk: { src: 'assets/fighters/infj/frames/walk_sheet.jpeg', frames: 4, fps: 10 },
         jump: { src: 'assets/fighters/infj/frames/jump_sheet.jpeg', frames: 4, fps: 8, loop: false },
-        attack: { src: 'assets/fighters/infj/frames/attack_sheet.jpeg', frames: 4, fps: 16, loop: false }
+        attack: { src: 'assets/fighters/infj/frames/attack_sheet.jpeg', frames: 4, fps: 16, loop: false },
+        ultimate: {
+          src: 'assets/fighters/infj/frames/ult_sheet.jpeg',
+          cols: 4,
+          rows: 4,
+          frames: 16,
+          fps: 14,
+          loop: false,
+          cropInset: 4
+        }
       }
     });
   }
@@ -43,29 +52,36 @@ export class INFJ extends FighterBase {
     context.spawnFloatingText(this.getCenterX(), this.y - 16, '共情护盾!', '#34d399');
   }
 
-  // 【Door Slam / 关门大吉】：在对手面前拍下巨门
-  useUltimate(opponent, context) {
-    const doorX = opponent.getCenterX() - 28;
+  // 【Door Slam / 关门大吉】：播放 16 帧关门动画并在身前拍下巨门
+  useUltimate(_opponent, context) {
+    this.ultimateAnimTimer = 1.15;
+    this.applyStatus('invincible', 0.75);
+    context.spawnFloatingText(this.getCenterX(), this.y - 24, 'Door Slam!', '#34d399');
+
+    const hitWidth = 110;
+    const hitX = this.facing === 1 ? this.x + this.width - 10 : this.x - hitWidth + 10;
+    let slamTriggered = false;
+    let delay = 0.36;
+
     context.spawnProjectile({
       owner: this,
-      x: doorX,
-      y: opponent.y - 160,
-      width: 56,
-      height: 110,
-      vy: 900,
-      lifetime: 0.45,
+      x: hitX,
+      y: this.y - 20,
+      width: hitWidth,
+      height: this.height + 20,
+      lifetime: 0.65,
+      pierce: true,
+      update(dt) {
+        delay -= dt;
+      },
       onHit(target, ctx) {
+        if (slamTriggered || delay > 0) return;
+        slamTriggered = true;
         target.statusEffects.invincible = 0;
         target.statusEffects.superArmor = 0;
-        target.takeDamage(24, this.owner.facing * 380, -280, this.owner, ctx, '关门大吉!');
+        target.takeDamage(26, this.owner.facing * 420, -290, this.owner, ctx, '关门大吉!');
       },
-      draw(ctx) {
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(this.x, this.y, this.width, this.height);
-      }
+      draw() {}
     });
   }
 

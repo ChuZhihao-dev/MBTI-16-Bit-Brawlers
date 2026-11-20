@@ -33,6 +33,7 @@ export class FighterBase {
     this.skillCdMax = config.skillCdMax ?? 3.5;
 
     this.attackAnimTimer = 0;
+    this.ultimateAnimTimer = 0;
     this.hitFlashTimer = 0;
     this.animState = 'idle';
     this.spriteAnimator = config.sprites
@@ -77,6 +78,7 @@ export class FighterBase {
     this.basicCd = Math.max(0, this.basicCd - dt);
     this.skillCd = Math.max(0, this.skillCd - dt);
     this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
+    this.ultimateAnimTimer = Math.max(0, this.ultimateAnimTimer - dt);
     this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
 
     for (const key of Object.keys(this.statusEffects)) {
@@ -153,7 +155,9 @@ export class FighterBase {
     }
 
     // 6. 更新当前动画状态与精灵帧
-    if (this.attackAnimTimer > 0) {
+    if (this.ultimateAnimTimer > 0) {
+      this.animState = 'ultimate';
+    } else if (this.attackAnimTimer > 0) {
       this.animState = 'attack';
     } else if (!this.onGround) {
       this.animState = 'jump';
