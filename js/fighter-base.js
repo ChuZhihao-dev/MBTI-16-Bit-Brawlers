@@ -40,6 +40,7 @@ export class FighterBase {
     this.dashTimer = 0;
     this.dashDir = this.facing;
     this.guarding = false;
+    this.dropThroughTimer = 0;
     this.ultimateAnimTimer = 0;
     this.ultimateAnimDuration = 0;
     this.hitFlashTimer = 0;
@@ -96,6 +97,7 @@ export class FighterBase {
     this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
     this.skillAnimTimer = Math.max(0, this.skillAnimTimer - dt);
     this.dashTimer = Math.max(0, this.dashTimer - dt);
+    this.dropThroughTimer = Math.max(0, this.dropThroughTimer - dt);
     this.ultimateAnimTimer = Math.max(0, this.ultimateAnimTimer - dt);
     this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
     this.shieldFlashTimer = Math.max(0, this.shieldFlashTimer - dt);
@@ -135,8 +137,16 @@ export class FighterBase {
       }
     }
 
-    // 通用防御（S / ↓）
-    if (input.guard !== undefined) {
+    // 通用防御（S / ↓）；站在空中平台时按住 下+跳 可快速穿落
+    const onFloatingPlatform = this.onGround && this.y + this.height < context.groundY - 4;
+    if (canAct && onFloatingPlatform && input.guard && input.up) {
+      this.dropThroughTimer = 0.22;
+      this.onGround = false;
+      this.y += 4;
+      this.jumpBufferTimer = 0;
+      this.coyoteTimer = 0;
+      this.guarding = false;
+    } else if (input.guard !== undefined) {
       this.guarding = Boolean(canAct && this.onGround && input.guard && this.dashTimer <= 0);
     }
 
@@ -208,22 +218,39 @@ export class FighterBase {
     }
 
     // 4. 重力与位置积分
+    const prevBottom = this.y + this.height;
     this.vy += context.gravity * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    // 5. 地面与左右空气墙碰撞
-    if (this.y + this.height >= context.groundY) {
+    // 5. 单向悬浮平台、主地面与舞台左右边界碰撞
+    this.onGround = false;
+    if (this.vy >= 0 && this.dropThroughTimer <= 0 && Array.isArray(context.platforms)) {
+      const currBottom = this.y + this.height;
+      for (const plat of context.platforms) {
+        const horizOverlap = this.x + this.width > plat.x + 8 && this.x < plat.x + plat.width - 8;
+        if (horizOverlap && prevBottom <= plat.y + 10 && currBottom >= plat.y) {
+          this.y = plat.y - this.height;
+          this.vy = 0;
+          this.onGround = true;
+          break;
+        }
+      }
+    }
+
+    if (!this.onGround && this.y + this.height >= context.groundY) {
       this.y = context.groundY - this.height;
       this.vy = 0;
       this.onGround = true;
     }
 
-    if (this.x < 12) {
-      this.x = 12;
+    const leftBound = context.stageLeft ?? 12;
+    const rightBound = (context.stageRight ?? context.arenaWidth - 12) - this.width;
+    if (this.x < leftBound) {
+      this.x = leftBound;
       this.vx = 0;
-    } else if (this.x + this.width > context.arenaWidth - 12) {
-      this.x = context.arenaWidth - 12 - this.width;
+    } else if (this.x > rightBound) {
+      this.x = rightBound;
       this.vx = 0;
     }
 

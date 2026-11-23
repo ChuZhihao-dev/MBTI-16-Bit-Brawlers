@@ -924,13 +924,13 @@ function startMatch() {
   engine.reset();
   p1 = createFighter(selectedP1, {
     playerIndex: 1,
-    x: 180,
+    x: engine.stage?.spawnP1X ?? 560,
     y: engine.groundY - 76,
     facing: 1
   });
   p2 = createFighter(selectedP2, {
     playerIndex: 2,
-    x: engine.arenaWidth - 228,
+    x: engine.stage?.spawnP2X ?? 1192,
     y: engine.groundY - 76,
     facing: -1
   });

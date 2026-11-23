@@ -1,11 +1,31 @@
+import { STAGES, DEFAULT_STAGE_ID } from './stages.js';
+
 export class GameEngine {
-  constructor(canvas) {
+  constructor(canvas, stageId = DEFAULT_STAGE_ID) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.arenaWidth = canvas.width;
-    this.arenaHeight = canvas.height;
-    this.groundY = canvas.height - 72;
+    this.stage = STAGES[stageId] || STAGES[DEFAULT_STAGE_ID];
+    this.arenaWidth = this.stage.width;
+    this.arenaHeight = this.stage.height;
+    this.groundY = this.stage.groundY;
+    this.stageLeft = this.stage.stageLeft;
+    this.stageRight = this.stage.stageRight;
+    this.platforms = this.stage.platforms || [];
     this.gravity = 1650;
+
+    this.stageBgImage = new Image();
+    this.stageBgLoaded = false;
+    this.stageBgImage.onload = () => {
+      this.stageBgLoaded = true;
+    };
+    this.stageBgImage.src = this.stage.backgroundSrc;
+
+    // 动态跟随缩放摄像机（大乱斗风格）
+    this.camera = {
+      x: this.arenaWidth / 2,
+      y: this.groundY - 120,
+      zoom: 1.15
+    };
 
     this.projectiles = [];
     this.floatingTexts = [];
@@ -28,6 +48,11 @@ export class GameEngine {
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
     this.finisherFighter = null;
+    this.camera = {
+      x: this.arenaWidth / 2,
+      y: this.groundY - 120,
+      zoom: 1.15
+    };
   }
 
   rectsOverlap(a, b) {
@@ -96,6 +121,9 @@ export class GameEngine {
       arenaWidth: this.arenaWidth,
       arenaHeight: this.arenaHeight,
       groundY: this.groundY,
+      stageLeft: this.stageLeft,
+      stageRight: this.stageRight,
+      platforms: this.platforms,
       gravity: this.gravity,
       rectsOverlap: this.rectsOverlap.bind(this),
       triggerHitstop: this.triggerHitstop.bind(this),
@@ -127,6 +155,7 @@ export class GameEngine {
     const context = this.createContext();
     p1.update(dt, p1Input, p2, context);
     p2.update(dt, p2Input, p1, context);
+    this._updateCamera(dt, p1, p2);
 
     // 更新飞行道具与碰撞检测
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -183,9 +212,63 @@ export class GameEngine {
     }
   }
 
+  _updateCamera(dt, p1, p2) {
+    if (!p1 || !p2) return;
+    const midX = (p1.getCenterX() + p2.getCenterX()) / 2;
+    const midY = (p1.getCenterY() + p2.getCenterY()) / 2 - 42;
+    const distX = Math.abs(p1.getCenterX() - p2.getCenterX());
+    const distY = Math.abs(p1.getCenterY() - p2.getCenterY());
+
+    // 贴身时拉近增强打击感，拉开距离时平滑拉远容纳全图与高低台
+    const distFactor = Math.max(distX / 900, distY / 380);
+    const targetZoom = Math.max(1.0, Math.min(1.36, 1.38 - distFactor * 0.42));
+
+    const smooth = 1 - Math.exp(-7.5 * dt);
+    this.camera.x += (midX - this.camera.x) * smooth;
+    this.camera.y += (midY - this.camera.y) * smooth;
+    this.camera.zoom += (targetZoom - this.camera.zoom) * smooth;
+  }
+
+  _syncViewport() {
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetW = Math.max(1, Math.round(rect.width * dpr));
+    const targetH = Math.max(1, Math.round(rect.height * dpr));
+    if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
+      this.canvas.width = targetW;
+      this.canvas.height = targetH;
+    }
+    // 保证任意屏幕比例下都完全铺满全屏（cover 基准 * 动态缩放）
+    const baseScale = Math.max(targetW / this.arenaWidth, targetH / this.arenaHeight);
+    const scale = baseScale * this.camera.zoom;
+    const visibleWorldW = targetW / scale;
+    const visibleWorldH = targetH / scale;
+
+    const minCamX = visibleWorldW / 2;
+    const maxCamX = this.arenaWidth - visibleWorldW / 2;
+    const minCamY = visibleWorldH / 2;
+    const maxCamY = this.arenaHeight - visibleWorldH / 2;
+
+    const camX = minCamX < maxCamX
+      ? Math.max(minCamX, Math.min(maxCamX, this.camera.x))
+      : this.arenaWidth / 2;
+    const camY = minCamY < maxCamY
+      ? Math.max(minCamY, Math.min(maxCamY, this.camera.y))
+      : this.arenaHeight / 2;
+
+    const offsetX = targetW / 2 - camX * scale;
+    const offsetY = targetH / 2 - camY * scale;
+    return { viewW: targetW, viewH: targetH, scale, offsetX, offsetY };
+  }
+
   render(p1, p2) {
     const ctx = this.ctx;
+    const { viewW, viewH, scale, offsetX, offsetY } = this._syncViewport();
+
     ctx.save();
+    // 1. 映射到动态跟随摄像机的超大画幅世界坐标系
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
 
     // 屏幕震动偏移
     if (this.shakeTimer > 0) {
@@ -269,36 +352,60 @@ export class GameEngine {
     ctx.restore();
   }
 
+  drawFullViewportBackdrop(ctx, viewW, viewH, screenGroundY) {
+    // 明亮低多边形天空渐变（彻底去除网格）
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, screenGroundY);
+    skyGrad.addColorStop(0, '#c8edf2');
+    skyGrad.addColorStop(0.55, '#eef8f6');
+    skyGrad.addColorStop(1, '#fff8e8');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, viewW, screenGroundY);
+
+    // 远景柔和低多边形山峦剪影
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.16)';
+    ctx.beginPath();
+    ctx.moveTo(0, screenGroundY);
+    ctx.lineTo(viewW * 0.14, screenGroundY * 0.62);
+    ctx.lineTo(viewW * 0.28, screenGroundY * 0.8);
+    ctx.lineTo(viewW * 0.45, screenGroundY * 0.58);
+    ctx.lineTo(viewW * 0.63, screenGroundY * 0.78);
+    ctx.lineTo(viewW * 0.82, screenGroundY * 0.56);
+    ctx.lineTo(viewW, screenGroundY * 0.74);
+    ctx.lineTo(viewW, screenGroundY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 全屏延展石质地面
+    const floorGrad = ctx.createLinearGradient(0, screenGroundY, 0, viewH);
+    floorGrad.addColorStop(0, '#d6cfc2');
+    floorGrad.addColorStop(0.22, '#bfb6a6');
+    floorGrad.addColorStop(1, '#8d8476');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, screenGroundY, viewW, viewH - screenGroundY);
+
+    // 地面高光沿线
+    ctx.fillStyle = '#f5f0e6';
+    ctx.fillRect(0, screenGroundY, viewW, 3);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+    ctx.fillRect(0, screenGroundY + 3, viewW, 2);
+  }
+
   drawArena(ctx) {
-    // 明亮白底格斗舞台
-    const grad = ctx.createLinearGradient(0, 0, 0, this.arenaHeight);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(1, '#f1f5f9');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.arenaWidth, this.arenaHeight);
-
-    // 浅灰网格辅助线
-    ctx.strokeStyle = 'rgba(15, 23, 42, 0.06)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < this.arenaWidth; x += 48) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, this.groundY);
-      ctx.stroke();
+    if (this.stageBgLoaded) {
+      ctx.drawImage(this.stageBgImage, 0, 0, this.arenaWidth, this.arenaHeight);
+      return;
     }
-    for (let y = 0; y < this.groundY; y += 48) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(this.arenaWidth, y);
-      ctx.stroke();
+    // 地图资源加载前的兜底天空与平台绘制
+    this.drawFullViewportBackdrop(ctx, this.arenaWidth, this.arenaHeight, this.groundY);
+    ctx.save();
+    ctx.fillStyle = '#c8bfb0';
+    ctx.strokeStyle = '#6b6255';
+    ctx.lineWidth = 3;
+    for (const plat of this.platforms) {
+      ctx.fillRect(plat.x, plat.y, plat.width, 16);
+      ctx.strokeRect(plat.x, plat.y, plat.width, 16);
     }
-
-    // 擂台地面
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(0, this.groundY, this.arenaWidth, this.arenaHeight - this.groundY);
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, this.groundY, this.arenaWidth, 4);
+    ctx.restore();
   }
 
   _getPortraitImage(path) {
