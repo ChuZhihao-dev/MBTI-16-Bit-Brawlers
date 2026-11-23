@@ -59,13 +59,13 @@
 
     <!-- 2. 全 16 人格海报选人界面 -->
     <section id="select-screen" class="screen">
-      <!-- 动态对峙光影背景层 -->
+      <!-- 绘景舞台 + 实时 Canvas 光效与粒子层 -->
       <div class="select-bg-stage" aria-hidden="true">
-        <div class="stage-slash stage-slash-p1"></div>
-        <div class="stage-slash stage-slash-p2"></div>
+        <img id="select-bg-image" class="select-bg-image" src="assets/ui/select_bg.jpg" alt="" />
+        <div class="select-bg-vignette"></div>
+        <canvas id="select-stage-canvas" class="select-stage-canvas"></canvas>
         <div class="stage-watermark stage-wm-p1" id="stage-wm-p1">INTJ</div>
         <div class="stage-watermark stage-wm-p2" id="stage-wm-p2">INFJ</div>
-        <div class="stage-speedlines"></div>
       </div>
 
       <div class="select-toolbar">

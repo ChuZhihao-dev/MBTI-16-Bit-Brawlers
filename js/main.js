@@ -1,6 +1,7 @@
 import { GameEngine } from './engine.js';
 import { FIGHTER_ROSTER, createFighter, getFighterMeta } from './fighters/index.js';
 import { sfx } from './sfx.js';
+import { createSelectStageFX } from './select-stage-fx.js';
 
 const coverScreen = document.getElementById('cover-screen');
 const selectScreen = document.getElementById('select-screen');
@@ -50,6 +51,17 @@ const p2ControlsHint = document.getElementById('p2-controls-hint');
 
 const canvas = document.getElementById('game-canvas');
 const engine = new GameEngine(canvas);
+const selectStageFx = createSelectStageFX(
+  document.getElementById('select-stage-canvas'),
+  document.getElementById('select-bg-image')
+);
+
+selectScreen?.addEventListener('mousemove', (e) => {
+  if (gameState !== 'SELECT') return;
+  const nx = (e.clientX / window.innerWidth) * 2 - 1;
+  const ny = (e.clientY / window.innerHeight) * 2 - 1;
+  selectStageFx.setPointer(nx, ny);
+});
 engine.onUltimateStart = () => {
   sfx.ultimate();
 };
@@ -536,6 +548,7 @@ function updateSpotlights({ animateSlot = 0 } = {}) {
   const m2 = getFighterMeta(p2Id);
   selectScreen.style.setProperty('--p1-color', m1.color);
   selectScreen.style.setProperty('--p2-color', m2.color);
+  selectStageFx.setColors(m1.color, m2.color);
   const wm1 = document.getElementById('stage-wm-p1');
   const wm2 = document.getElementById('stage-wm-p2');
   if (wm1) wm1.textContent = m1.name;
@@ -545,6 +558,7 @@ function updateSpotlights({ animateSlot = 0 } = {}) {
     selectScreen.classList.remove('stage-impact-p1', 'stage-impact-p2');
     void selectScreen.offsetWidth;
     selectScreen.classList.add(cls);
+    selectStageFx.triggerLockBurst(animateSlot, animateSlot === 1 ? m1.color : m2.color);
   }
   renderSpotlight(p1Spotlight, 1, p1Id, {
     isPreview: activeSlot === 1 && Boolean(hoveredId) && hoveredId !== selectedP1,
@@ -993,7 +1007,9 @@ function gameLoop(timestamp) {
   const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
   lastTime = timestamp;
 
-  if (gameState === 'FIGHT' && !paused) {
+  if (gameState === 'SELECT') {
+    selectStageFx.updateAndDraw(dt);
+  } else if (gameState === 'FIGHT' && !paused) {
     if (finisher) {
       advanceFinisher(dt);
       engine.render(p1, p2);
