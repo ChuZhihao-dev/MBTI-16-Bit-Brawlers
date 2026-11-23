@@ -532,6 +532,20 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
 function updateSpotlights({ animateSlot = 0 } = {}) {
   const p1Id = activeSlot === 1 && hoveredId ? hoveredId : selectedP1;
   const p2Id = activeSlot === 2 && hoveredId ? hoveredId : selectedP2;
+  const m1 = getFighterMeta(p1Id);
+  const m2 = getFighterMeta(p2Id);
+  selectScreen.style.setProperty('--p1-color', m1.color);
+  selectScreen.style.setProperty('--p2-color', m2.color);
+  const wm1 = document.getElementById('stage-wm-p1');
+  const wm2 = document.getElementById('stage-wm-p2');
+  if (wm1) wm1.textContent = m1.name;
+  if (wm2) wm2.textContent = m2.name;
+  if (animateSlot === 1 || animateSlot === 2) {
+    const cls = `stage-impact-p${animateSlot}`;
+    selectScreen.classList.remove('stage-impact-p1', 'stage-impact-p2');
+    void selectScreen.offsetWidth;
+    selectScreen.classList.add(cls);
+  }
   renderSpotlight(p1Spotlight, 1, p1Id, {
     isPreview: activeSlot === 1 && Boolean(hoveredId) && hoveredId !== selectedP1,
     animatePop: animateSlot === 1
@@ -588,7 +602,9 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
     const cardsWrap = document.createElement('div');
     cardsWrap.className = 'faction-cards';
 
-    members.forEach((fighter) => {
+    const fanAngles = [-7, -2.5, 2.5, 7];
+    const fanLifts = [10, 0, 0, 10];
+    members.forEach((fighter, memberIdx) => {
       const isP1 = selectedP1 === fighter.id;
       const isP2 = selectedP2 === fighter.id;
       const justLocked = lastLockedId === fighter.id;
@@ -596,11 +612,16 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
       card.className = `poster-card ${isP1 ? 'pick-p1' : ''} ${isP2 ? 'pick-p2' : ''} ${justLocked ? 'just-locked' : ''}`;
       card.dataset.id = fighter.id;
       card.dataset.index = String(cardIndex);
+      card.style.setProperty('--fan-rot', `${fanAngles[memberIdx] ?? 0}deg`);
+      card.style.setProperty('--fan-y', `${fanLifts[memberIdx] ?? 0}px`);
+      card.style.setProperty('--card-color', fighter.color);
+      card.style.setProperty('--enter-delay', `${cardIndex * 28}ms`);
       cardIndex += 1;
 
       card.innerHTML = `
         <div class="poster-thumb">
           ${createPosterImgHtml(fighter)}
+          <div class="poster-sheen" aria-hidden="true"></div>
           <div class="poster-tags">
             ${isP1 ? '<span class="poster-tag p1">1P</span>' : ''}
             ${isP2 ? '<span class="poster-tag p2">2P</span>' : ''}
