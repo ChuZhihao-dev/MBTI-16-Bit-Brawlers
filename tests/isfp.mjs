@@ -67,7 +67,7 @@ for (const side of [1, 2]) {
 const source = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
 const inputFn = source.slice(source.indexOf('function getPlayerInput('), source.indexOf('function updateControlsHint('));
 for (const [player, codes] of [[1, ['KeyJ','KeyK','KeyL','KeyU','KeyI','KeyO']], [2, ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6']], [2, ['Numpad1','Numpad2','Numpad3','Numpad4','Numpad5','Numpad6']]]) {
-  for (const [i, key] of ['lightAttack','heavyAttack','dash','paintProjectile','inspirationDash','ultimate'].entries()) {
+  for (const [i, key] of ['lightAttack','heavyAttack','dash','skill1','skill2','ultimate'].entries()) {
     const scope = { p1: {id:'isfp'}, p2: {id:'isfp'}, keysDown: new Set(), keysJustPressed: new Set([codes[i]]) };
     const input = vm.runInNewContext(`${inputFn}\ngetPlayerInput(${player})`, scope);
     assert.equal(input[key], true, codes[i]);

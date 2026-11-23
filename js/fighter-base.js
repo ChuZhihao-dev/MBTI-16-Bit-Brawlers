@@ -132,9 +132,14 @@ export class FighterBase {
       this.dashCd = this.dashCdMax;
       this.dashTimer = 0.22;
       this.applyStatus('invincible', 0.16);
+      context.sfx?.dash();
+      context.spawnAfterimage?.(this, this.color);
       if (context.spawnParticles) {
         context.spawnParticles(this.getCenterX(), this.getCenterY(), this.color, 6);
       }
+    }
+    if (this.dashTimer > 0 && Math.floor(this.dashTimer * 25) !== Math.floor((this.dashTimer + dt) * 25)) {
+      context.spawnAfterimage?.(this, this.color);
     }
 
     // 通用防御（S / ↓）；站在空中平台时按住 下+跳 可快速穿落
@@ -181,9 +186,14 @@ export class FighterBase {
       this.vx *= Math.pow(0.03, dt);
     }
 
-    // 3. 动作触发（普攻 / 特技 / 终极奥义）
+    // 3. 动作触发（普攻 / 特技 / 终极奥义，兼容统一 6 键与旧 3 键输入）
     if (canAct && !isDashing && !this.guarding) {
-      if (input.attack && this.basicCd <= 0) {
+      const triggerAttack = input.attack !== undefined ? input.attack : Boolean(input.lightAttack);
+      const triggerSkill = input.skill !== undefined
+        ? input.skill
+        : Boolean(input.heavyAttack || input.skill1 || input.skill2);
+
+      if (triggerAttack && this.basicCd <= 0) {
         this.basicCd = this.basicCdMax;
         this.attackAnimTimer = 0.16;
         if (this.spriteAnimator) {
@@ -192,7 +202,7 @@ export class FighterBase {
         this.useBasicAttack(opponent, context);
       }
 
-      if (input.skill && this.skillCd <= 0) {
+      if (triggerSkill && this.skillCd <= 0) {
         this.skillCd = this.skillCdMax;
         if (this.spriteAnimator && this.spriteAnimator.hasAnimation('skill')) {
           this.spriteAnimator.reset('skill');
@@ -312,8 +322,10 @@ export class FighterBase {
         this.shieldFlashTimer = 0.12;
         this.vx = knockbackX * 0.25;
         this.gainEp(Math.round(amount * 0.5));
-        context.triggerHitstop(2);
-        context.triggerShake(2, 0.06);
+        context.triggerHitstop(3);
+        context.triggerShake(3, 0.08, Math.sign(knockbackX), 0);
+        context.sfx?.guardBlock();
+        context.spawnHitSpark?.(this.getCenterX() + this.facing * 18, this.getCenterY(), '#38bdf8', 'guard', -this.facing);
         if (context.spawnParticles) {
           context.spawnParticles(this.getCenterX() + this.facing * 16, this.getCenterY(), '#38bdf8', 6);
         }
@@ -323,7 +335,7 @@ export class FighterBase {
     }
 
     this.hp = Math.max(0, this.hp - amount);
-    this.hitFlashTimer = 0.12;
+    this.hitFlashTimer = amount >= 11 ? 0.16 : 0.12;
     this.gainEp(Math.round(amount * 0.9));
     if (attacker) {
       attacker.gainEp(Math.round(amount * 1.1));
@@ -332,21 +344,37 @@ export class FighterBase {
     if (this.statusEffects.superArmor <= 0) {
       this.vx = knockbackX;
       this.vy = knockbackY;
-      this.hitstunTimer = 0.18;
+      this.hitstunTimer = amount >= 11 ? 0.24 : 0.17;
       if (this.spriteAnimator && this.spriteAnimator.hasAnimation('hit')) {
         this.spriteAnimator.reset('hit');
       }
       if (knockbackY < 0) this.onGround = false;
     }
 
-    context.triggerHitstop(amount >= 18 ? 5 : 3);
-    context.triggerShake(amount >= 18 ? 9 : 4, 0.14);
+    const hitKind = amount >= 20 ? 'ultimate' : amount >= 11 ? 'heavy' : 'light';
+    const hitDir = Math.sign(knockbackX) || (attacker ? attacker.facing : -this.facing);
+    context.triggerHitstop(hitKind === 'ultimate' ? 7 : hitKind === 'heavy' ? 5 : 3);
+    context.triggerShake(
+      hitKind === 'ultimate' ? 11 : hitKind === 'heavy' ? 7 : 4,
+      hitKind === 'light' ? 0.11 : 0.18,
+      hitDir,
+      knockbackY < -140 ? -0.35 : 0
+    );
+    if (hitKind === 'light') context.sfx?.hitLight();
+    else context.sfx?.hitHeavy();
+    context.spawnHitSpark?.(
+      this.getCenterX() - hitDir * 10,
+      this.getCenterY() - 6,
+      attacker ? attacker.color : '#fde047',
+      hitKind,
+      hitDir
+    );
     if (context.spawnParticles) {
       context.spawnParticles(
         this.getCenterX(),
         this.getCenterY(),
         attacker ? attacker.color : '#f97316',
-        amount >= 18 ? 14 : 7
+        hitKind === 'ultimate' ? 16 : hitKind === 'heavy' ? 11 : 7
       );
     }
 
@@ -402,8 +430,9 @@ export class FighterBase {
     ctx.ellipse(this.getCenterX(), this.y + this.height, this.width * 0.55, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 围绕角色中心翻转坐标系，子类只需按“面朝右”绘制即可
-    ctx.translate(this.getCenterX(), this.getCenterY());
+    // 围绕角色中心翻转坐标系，受击闪白期间叠加高频微颤（拳拳到肉反馈）
+    const vibX = this.hitFlashTimer > 0 ? Math.sin(performance.now() * 0.09) * 4.5 : 0;
+    ctx.translate(this.getCenterX() + vibX, this.getCenterY());
     ctx.scale(this.facing, 1);
 
     const halfW = this.width / 2;

@@ -22,8 +22,8 @@
 - [x] 暂停弹窗新增 1P/2P 自定义改键、冲突互换、恢复默认与 `localStorage` 持久化
 - [x] `FighterBase` 补充通用 **闪避（`L`/`3`）** 与 **防御（`S`/`↓`）** 兜底逻辑
 - [x] 统一主文档 [README.md](./README.md) 与开发规范 [SKILL.md](./.agents/skills/mbti-fighter-spec/SKILL.md)
-- [ ] **统一输入协议字段**：消除 `js/main.js` 中按角色 ID 分支的 3 套字段名，全部统一为 `left / right / up / guard / lightAttack / heavyAttack / dash / skill1 / skill2 / ultimate`（同时支持长按蓄力状态与触发状态）
-- [ ] **迁移 `ISFP` 与 `ENFJ`**：将两者的输入读取对接到统一标准字段名
+- [x] **统一输入协议字段**：消除 `js/main.js` 中按角色 ID 分支的 3 套字段名，全部统一为 `left / right / up / guard / lightAttack / heavyAttack / dash / skill1 / skill2 / ultimate`（同时支持长按蓄力状态与触发状态）
+- [x] **迁移 `ISFP` 与 `ENFJ`**：将两者的输入读取对接到统一标准字段名（并统一大地图边界限位）
 - [ ] **规范 `FighterBase` 6 键生命周期钩子**：基类明确 `useLightAttack`、`useHeavyAttack`、`useDash`、`useGuard`、`useSkill1`、`useSkill2`、`useUltimate` 标准接口
 
 ---

@@ -376,42 +376,20 @@ function getPlayerInput(playerIndex) {
   };
   const down = (action) => check(keysDown, binds[action]);
   const pressed = (action) => check(keysJustPressed, binds[action]);
-  const fighterId = playerIndex === 1 ? p1?.id : p2?.id;
 
-  if (fighterId === 'isfp') {
-    return {
-      left: down('left'),
-      right: down('right'),
-      up: pressed('up'),
-      lightAttack: pressed('lightAttack'),
-      heavyAttack: pressed('heavyAttack'),
-      dash: pressed('dash'),
-      paintProjectile: pressed('skill1'),
-      inspirationDash: pressed('skill2'),
-      ultimate: pressed('ultimate')
-    };
-  }
-  if (fighterId === 'enfj') {
-    return {
-      left: down('left'),
-      right: down('right'),
-      up: pressed('up'),
-      guard: down('guard'),
-      lightAttack: pressed('lightAttack'),
-      heavyAttack: pressed('heavyAttack'),
-      dash: pressed('dash'),
-      rangedAttack: pressed('skill1'),
-      special: pressed('skill2'),
-      ultimate: pressed('ultimate')
-    };
-  }
+  // 全角色唯一统一输入协议（含小技能长按蓄力状态）
   return {
     left: down('left'),
     right: down('right'),
     up: pressed('up'),
     guard: down('guard'),
-    attack: pressed('lightAttack'),
-    skill: pressed('heavyAttack') || pressed('skill1') || pressed('skill2'),
+    lightAttack: pressed('lightAttack'),
+    heavyAttack: pressed('heavyAttack'),
+    dash: pressed('dash'),
+    skill1: pressed('skill1'),
+    skill2: pressed('skill2'),
+    skill1Held: down('skill1'),
+    skill2Held: down('skill2'),
     ultimate: pressed('ultimate')
   };
 }

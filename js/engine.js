@@ -1,4 +1,5 @@
 import { STAGES, DEFAULT_STAGE_ID } from './stages.js';
+import { sfx } from './sfx.js';
 
 export class GameEngine {
   constructor(canvas, stageId = DEFAULT_STAGE_ID) {
@@ -30,9 +31,14 @@ export class GameEngine {
     this.projectiles = [];
     this.floatingTexts = [];
     this.particles = [];
+    this.hitSparks = [];
+    this.afterimages = [];
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
+    this.shakeDuration = 0.15;
     this.shakeIntensity = 0;
+    this.shakeDirX = 0;
+    this.shakeDirY = 0;
     this.onUltimateStart = null;
     this.onUltimateKo = null;
     this.showUltimateShowcase = true;
@@ -44,9 +50,14 @@ export class GameEngine {
     this.projectiles = [];
     this.floatingTexts = [];
     this.particles = [];
+    this.hitSparks = [];
+    this.afterimages = [];
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
+    this.shakeDuration = 0.15;
     this.shakeIntensity = 0;
+    this.shakeDirX = 0;
+    this.shakeDirY = 0;
     this.finisherFighter = null;
     this.camera = {
       x: this.arenaWidth / 2,
@@ -68,9 +79,52 @@ export class GameEngine {
     this.hitstopFrames = Math.max(this.hitstopFrames, frames);
   }
 
-  triggerShake(intensity, duration = 0.15) {
+  triggerShake(intensity, duration = 0.15, dirX = 0, dirY = 0) {
     this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
     this.shakeTimer = Math.max(this.shakeTimer, duration);
+    this.shakeDuration = Math.max(this.shakeDuration || duration, duration);
+    if (dirX !== 0 || dirY !== 0) {
+      this.shakeDirX = dirX;
+      this.shakeDirY = dirY;
+    }
+  }
+
+  spawnHitSpark(x, y, color = '#fde047', kind = 'light', dirX = 1) {
+    const isHeavy = kind === 'heavy' || kind === 'ultimate';
+    const isGuard = kind === 'guard';
+    const maxLife = isHeavy ? 0.24 : isGuard ? 0.2 : 0.16;
+    this.hitSparks.push({
+      x,
+      y,
+      color,
+      kind,
+      dirX: dirX || 1,
+      rotation: (Math.random() - 0.5) * 0.8,
+      maxRadius: kind === 'ultimate' ? 88 : isHeavy ? 62 : isGuard ? 46 : 38,
+      life: 0,
+      maxLife
+    });
+  }
+
+  spawnAfterimage(fighter, color = fighter.color) {
+    const frame = fighter.spriteAnimator?.getCurrentFrame(fighter.animState);
+    if (!frame) return;
+    const drawH = Math.min(frame.height, fighter.spriteHeight)
+      * (fighter.getSpriteRenderScale?.(frame) ?? 1);
+    const drawW = (frame.width / frame.height) * drawH;
+    this.afterimages.push({
+      frame,
+      x: fighter.getCenterX(),
+      y: fighter.getCenterY(),
+      halfH: fighter.height / 2,
+      footOffset: fighter.spriteFootOffset,
+      drawW,
+      drawH,
+      facing: fighter.facing,
+      color,
+      life: 0,
+      maxLife: 0.18
+    });
   }
 
   spawnProjectile(proj) {
@@ -131,6 +185,9 @@ export class GameEngine {
       spawnProjectile: this.spawnProjectile.bind(this),
       spawnFloatingText: this.spawnFloatingText.bind(this),
       spawnParticles: this.spawnParticles.bind(this),
+      spawnHitSpark: this.spawnHitSpark.bind(this),
+      spawnAfterimage: this.spawnAfterimage.bind(this),
+      sfx,
       onUltimateStart: (fighter) => {
         if (typeof this.onUltimateStart === 'function') {
           this.onUltimateStart(fighter);
@@ -143,7 +200,25 @@ export class GameEngine {
   update(dt, p1, p2, p1Input, p2Input) {
     if (this.shakeTimer > 0) {
       this.shakeTimer = Math.max(0, this.shakeTimer - dt);
-      if (this.shakeTimer === 0) this.shakeIntensity = 0;
+      if (this.shakeTimer === 0) {
+        this.shakeIntensity = 0;
+        this.shakeDirX = 0;
+        this.shakeDirY = 0;
+      }
+    }
+
+    // 顿帧期间推进命中星芒与残影，并让受击方保持高频微颤（拳拳到肉的核心）
+    for (let i = this.hitSparks.length - 1; i >= 0; i--) {
+      this.hitSparks[i].life += dt;
+      if (this.hitSparks[i].life >= this.hitSparks[i].maxLife) {
+        this.hitSparks.splice(i, 1);
+      }
+    }
+    for (let i = this.afterimages.length - 1; i >= 0; i--) {
+      this.afterimages[i].life += dt;
+      if (this.afterimages[i].life >= this.afterimages[i].maxLife) {
+        this.afterimages.splice(i, 1);
+      }
     }
 
     // 顿帧期间冻结角色与飞行道具物理更新
@@ -270,14 +345,39 @@ export class GameEngine {
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // 屏幕震动偏移
+    // 方向性衰减震屏（首帧沿攻击方向强烈冲击，随后阻尼回弹）
     if (this.shakeTimer > 0) {
-      const dx = (Math.random() - 0.5) * 2 * this.shakeIntensity;
-      const dy = (Math.random() - 0.5) * 2 * this.shakeIntensity;
+      const progress = this.shakeTimer / Math.max(0.01, this.shakeDuration || 0.15);
+      const mag = this.shakeIntensity * progress;
+      const impulse = Math.sin(progress * Math.PI * 5);
+      const dx = this.shakeDirX !== 0
+        ? this.shakeDirX * mag * impulse * 0.9 + (Math.random() - 0.5) * mag * 0.6
+        : (Math.random() - 0.5) * 2 * mag;
+      const dy = this.shakeDirY !== 0
+        ? this.shakeDirY * mag * impulse * 0.6 + (Math.random() - 0.5) * mag * 0.7
+        : (Math.random() - 0.5) * 2 * mag;
       ctx.translate(dx, dy);
     }
 
     this.drawArena(ctx);
+
+    // 冲刺/爆发残影层（位于角色后方）
+    for (const ghost of this.afterimages) {
+      const t = 1 - ghost.life / ghost.maxLife;
+      ctx.save();
+      ctx.translate(ghost.x, ghost.y);
+      ctx.scale(ghost.facing, 1);
+      ctx.globalAlpha = t * 0.38;
+      ctx.filter = 'brightness(1.35) saturate(1.4)';
+      ctx.drawImage(
+        ghost.frame,
+        -ghost.drawW / 2,
+        ghost.halfH - ghost.drawH + ghost.footOffset,
+        ghost.drawW,
+        ghost.drawH
+      );
+      ctx.restore();
+    }
 
     // 绘制飞行道具/陷阱
     for (const p of this.projectiles) {
@@ -295,14 +395,61 @@ export class GameEngine {
     if (!p1.hiddenForFinisher) p1.draw(ctx);
     if (!p2.hiddenForFinisher) p2.draw(ctx);
 
-    // 若任一角色正在释放终极奥义，叠加完整的大招演出特写画面
-    const ultFighter = p1.ultimateAnimTimer > 0 ? p1 : (p2.ultimateAnimTimer > 0 ? p2 : null);
-    if (ultFighter && this.showUltimateShowcase) {
-      this.drawUltimateShowcase(ctx, ultFighter);
-    }
+    // 绘制命中十字星芒 + 扩散冲击波圆环 + 方向性斩击线
+    for (const sp of this.hitSparks) {
+      const progress = sp.life / sp.maxLife;
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const alpha = Math.max(0, 1 - progress);
+      const radius = sp.maxRadius * (0.28 + ease * 0.72);
+      ctx.save();
+      ctx.translate(sp.x, sp.y);
 
-    if (this.finisherFighter) {
-      this.drawFinisherShowcase(ctx, this.finisherFighter);
+      // 1. 扩散冲击波圆环
+      ctx.strokeStyle = sp.kind === 'guard' ? '#38bdf8' : sp.color;
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.lineWidth = (sp.kind === 'heavy' || sp.kind === 'ultimate' ? 5 : 3) * (1 - progress * 0.65);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 2. 格斗游戏标志性十字星芒闪光
+      if (sp.kind !== 'guard') {
+        ctx.save();
+        ctx.rotate(sp.rotation);
+        const arm = radius * 1.15;
+        const thick = Math.max(2, (sp.kind === 'light' ? 5 : 9) * (1 - progress));
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.moveTo(0, -arm);
+        ctx.lineTo(thick, -thick);
+        ctx.lineTo(arm, 0);
+        ctx.lineTo(thick, thick);
+        ctx.lineTo(0, arm);
+        ctx.lineTo(-thick, thick);
+        ctx.lineTo(-arm, 0);
+        ctx.lineTo(-thick, -thick);
+        ctx.closePath();
+        ctx.fill();
+
+        // 方向性斜向斩击高光线
+        ctx.strokeStyle = sp.color;
+        ctx.lineWidth = thick * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(-sp.dirX * radius * 0.8, -radius * 0.45);
+        ctx.lineTo(sp.dirX * radius * 1.3, radius * 0.45);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // 格挡内圈高亮环
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.62, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // 绘制打击像素粒子
@@ -314,7 +461,7 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // 绘制浮动文字特效（深色描边确保白底高对比可读）
+    // 绘制浮动文字特效（深色描边确保高对比可读）
     for (const ft of this.floatingTexts) {
       const alpha = Math.max(0, ft.lifetime / ft.maxLifetime);
       ctx.save();
@@ -330,6 +477,40 @@ export class GameEngine {
     }
 
     ctx.restore();
+
+    // 屏幕空间全屏特写层（脱离动态摄像机缩放与平移，始终居中满屏显示）
+    const ultFighter = p1.ultimateAnimTimer > 0 ? p1 : (p2.ultimateAnimTimer > 0 ? p2 : null);
+    if ((ultFighter && this.showUltimateShowcase) || this.finisherFighter) {
+      const uiScale = Math.min(viewW / 960, viewH / 540);
+      const uiOffsetX = (viewW - 960 * uiScale) / 2;
+      const uiOffsetY = (viewH - 540 * uiScale) / 2;
+      ctx.save();
+      if (ultFighter && this.showUltimateShowcase) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.fillRect(0, 0, viewW, viewH);
+      } else if (this.finisherFighter) {
+        ctx.fillStyle = 'rgba(247, 253, 246, 0.96)';
+        ctx.fillRect(0, 0, viewW, viewH);
+      }
+      ctx.translate(uiOffsetX, uiOffsetY);
+      ctx.scale(uiScale, uiScale);
+      const prevW = this.arenaWidth;
+      const prevH = this.arenaHeight;
+      const prevG = this.groundY;
+      this.arenaWidth = 960;
+      this.arenaHeight = 540;
+      this.groundY = 468;
+      if (ultFighter && this.showUltimateShowcase) {
+        this.drawUltimateShowcase(ctx, ultFighter);
+      }
+      if (this.finisherFighter) {
+        this.drawFinisherShowcase(ctx, this.finisherFighter);
+      }
+      this.arenaWidth = prevW;
+      this.arenaHeight = prevH;
+      this.groundY = prevG;
+      ctx.restore();
+    }
   }
 
   drawFinisherShowcase(ctx, fighter) {

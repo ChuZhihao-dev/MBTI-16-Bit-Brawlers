@@ -93,12 +93,14 @@ export class ENFJ extends GenericMBTIFighter {
     const locked = Boolean(this.combo || this.dashElapsed !== null || this.buffCastElapsed !== null
       || this.waveCastElapsed !== null || this.ultimateAnimTimer > 0);
     this.guarding = Boolean(input.guard && !locked && this.hitstunTimer <= 0);
+    const triggerSkill1 = Boolean(input.skill1 ?? input.rangedAttack);
+    const triggerSkill2 = Boolean(input.skill2 ?? input.special);
     super.update(dt, {
       left: !locked && !this.guarding && input.left,
       right: !locked && !this.guarding && input.right,
       up: !locked && !this.guarding && input.up,
       attack: false,
-      skill: !locked && !this.guarding && input.rangedAttack,
+      skill: !locked && !this.guarding && triggerSkill1,
       ultimate: !locked && !this.guarding && input.ultimate
     }, opponent, context);
     if (wasGrounded && !this.onGround) this.jumpStartupTimer = 5 / 60;
@@ -141,8 +143,15 @@ export class ENFJ extends GenericMBTIFighter {
         return;
       }
       if (this.dashElapsed >= 4 && this.dashElapsed < 13) {
-        this.x = Math.max(12, Math.min(context.arenaWidth - 12 - this.width, this.x + this.facing * 760 * dt));
+        const leftBound = context.stageLeft ?? 12;
+        const rightBound = (context.stageRight ?? context.arenaWidth - 12) - this.width;
+        this.x = Math.max(leftBound, Math.min(rightBound, this.x + this.facing * 760 * dt));
         if (this.dashElapsed < 9) this.applyStatus('invincible', 0.04);
+        const f = Math.floor(this.dashElapsed);
+        if ((f === 4 || f === 7 || f === 10) && this._lastDashGhostFrame !== f) {
+          this._lastDashGhostFrame = f;
+          context.spawnAfterimage?.(this, '#84cc16');
+        }
       }
       if (this.dashElapsed >= 18) this.dashElapsed = null;
       else this.showFrame('dash', Math.floor(this.dashElapsed));
@@ -180,18 +189,25 @@ export class ENFJ extends GenericMBTIFighter {
       const direction = Number(input.right) - Number(input.left);
       if (direction) this.facing = direction;
       this.dashElapsed = 0;
+      this._lastDashGhostFrame = -1;
       this.dashCooldown = 0.8;
       this.vx = 0;
+      context.sfx?.dash();
+      context.spawnAfterimage?.(this, '#84cc16');
       this.showFrame('dash', 0);
-    } else if (input.special && this.buffCooldown <= 0) {
+    } else if (triggerSkill2 && this.buffCooldown <= 0) {
       this.buffCastElapsed = 0;
       this.buffCooldown = 12;
       this.applyStatus('superArmor', 0.12);
       this.vx = 0;
+      context.sfx?.buff();
+      context.spawnHitSpark?.(this.getCenterX(), this.getCenterY(), '#bef264', 'heavy', this.facing);
       this.showFrame('buff', 0);
     } else if (input.lightAttack && this.comboCooldown <= 0) {
+      context.sfx?.whoosh(false);
       this.startCombo('light');
     } else if (input.heavyAttack && this.comboCooldown <= 0) {
+      context.sfx?.whoosh(true);
       this.startCombo('heavy');
     }
   }
@@ -319,15 +335,21 @@ export class ENFJ extends GenericMBTIFighter {
     if (this.guarding && fromFront) {
       this.blockHitTimer = 4 / 60;
       this.shieldFlashTimer = 0.14;
-      context.triggerHitstop(3);
-      context.spawnParticles?.(this.getCenterX() + this.facing * 16, this.getCenterY(), '#a3e635', 6);
-      this.x = Math.max(12, Math.min(context.arenaWidth - 12 - this.width, this.x - this.facing * 7));
+      context.triggerHitstop(4);
+      context.triggerShake(4, 0.09, Math.sign(knockbackX), 0);
+      context.sfx?.guardBlock();
+      context.spawnHitSpark?.(this.getCenterX() + this.facing * 20, this.getCenterY(), '#a3e635', 'guard', -this.facing);
+      context.spawnParticles?.(this.getCenterX() + this.facing * 16, this.getCenterY(), '#a3e635', 7);
+      const leftBound = context.stageLeft ?? 12;
+      const rightBound = (context.stageRight ?? context.arenaWidth - 12) - this.width;
+      this.x = Math.max(leftBound, Math.min(rightBound, this.x - this.facing * 7));
       return false;
     }
     return super.takeDamage(amount, knockbackX, knockbackY, attacker, context, hitLabel);
   }
 
   releaseSwordWave(context, index) {
+    context.sfx?.whoosh(index === 2);
     const width = 42;
     const height = 50;
     const image = this.waveImage;

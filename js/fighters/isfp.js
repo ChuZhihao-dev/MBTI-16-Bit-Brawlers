@@ -79,6 +79,8 @@ export class ISFP extends FighterBase {
 
     if (!this.action) {
       const direction = Number(Boolean(input.right)) - Number(Boolean(input.left));
+      const triggerSkill1 = Boolean(input.skill1 ?? input.paintProjectile);
+      const triggerSkill2 = Boolean(input.skill2 ?? input.inspirationDash);
       if (input.dash && this.onGround && this.dashCd <= 0 && this.statusEffects.rooted <= 0) {
         this.facing = direction || this.facing;
         this.dashCd = 0.85;
@@ -89,10 +91,10 @@ export class ISFP extends FighterBase {
       } else if (input.lightAttack && this.basicCd <= 0) {
         this.basicCd = 0.28;
         this.beginAction('lightAttack', 13 / 60);
-      } else if (input.paintProjectile && this.paintCd <= 0) {
+      } else if (triggerSkill1 && this.paintCd <= 0) {
         this.paintCd = 3.4;
         this.beginAction('paintProjectile', 34 / 60);
-      } else if (input.inspirationDash && this.inspirationCd <= 0 && this.statusEffects.rooted <= 0) {
+      } else if (triggerSkill2 && this.inspirationCd <= 0 && this.statusEffects.rooted <= 0) {
         this.inspirationCd = 4.2;
         this.beginAction('inspirationDash', 38 / 60);
       }
@@ -165,7 +167,9 @@ export class ISFP extends FighterBase {
   }
 
   moveBurst(distance, context) {
-    this.x = Math.max(12, Math.min(context.arenaWidth - 12 - this.width, this.x + this.facing * distance));
+    const leftBound = context.stageLeft ?? 12;
+    const rightBound = (context.stageRight ?? context.arenaWidth - 12) - this.width;
+    this.x = Math.max(leftBound, Math.min(rightBound, this.x + this.facing * distance));
     this.vx = 0;
   }
 
