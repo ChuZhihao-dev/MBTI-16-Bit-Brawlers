@@ -1,0 +1,10 @@
+Use case: stylized-concept
+Asset type: 2D fighting-game character sprite sheet
+Input images: Image 1 is the authoritative ISFP character appearance reference. Image 2 is only the sprite-sheet layout, framing, low-poly rendering, and animation-timing reference.
+Primary request: Create a four-frame horizontal jump animation for the ISFP artist fighter. Show four distinct consecutive phases: crouched takeoff, rising with knees tucked, airborne apex, and descending landing preparation. The character faces screen-right and keeps control of the palette and paintbrush.
+Subject: Preserve Image 1 exactly as the character anchor: youthful androgynous artist, angular golden spiky hair, pale skin, gray shirt, ochre painter apron/overalls, bright yellow-orange shorts, white socks, small shoes, painter palette and brush. Keep the same face, proportions, costume, colors, and props in every frame.
+Style/medium: clean low-poly geometric 2D game illustration, crisp polygon facets, matching the existing MBTI brawler assets.
+Composition/framing: exactly four equal-width frames in one horizontal row; one full-body character per frame; consistent character scale; enough vertical room for airborne poses; no overlap; all frames face screen-right.
+Scene/backdrop: plain warm white background matching Image 2, with subtle ground shadows only where useful.
+Constraints: exactly four poses; clear vertical motion progression; correct limb count; consistent palette and brush; no frame borders; no text; no labels; no logos; no watermark.
+Avoid: extra characters, duplicated limbs, cropped body, costume drift, hairstyle drift, prop drift, perspective changes, motion blur, merged frames, decorative scenery.

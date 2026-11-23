@@ -14,6 +14,9 @@ export class GameEngine {
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
     this.onUltimateStart = null;
+    this.onUltimateKo = null;
+    this.showUltimateShowcase = true;
+    this.finisherFighter = null;
     this.portraitCache = new Map();
   }
 
@@ -24,6 +27,7 @@ export class GameEngine {
     this.hitstopFrames = 0;
     this.shakeTimer = 0;
     this.shakeIntensity = 0;
+    this.finisherFighter = null;
   }
 
   rectsOverlap(a, b) {
@@ -103,7 +107,8 @@ export class GameEngine {
         if (typeof this.onUltimateStart === 'function') {
           this.onUltimateStart(fighter);
         }
-      }
+      },
+      onUltimateKo: (winner, loser) => this.onUltimateKo?.(winner, loser)
     };
   }
 
@@ -204,13 +209,17 @@ export class GameEngine {
       }
     }
 
-    p1.draw(ctx);
-    p2.draw(ctx);
+    if (!p1.hiddenForFinisher) p1.draw(ctx);
+    if (!p2.hiddenForFinisher) p2.draw(ctx);
 
     // 若任一角色正在释放终极奥义，叠加完整的大招演出特写画面
     const ultFighter = p1.ultimateAnimTimer > 0 ? p1 : (p2.ultimateAnimTimer > 0 ? p2 : null);
-    if (ultFighter) {
+    if (ultFighter && this.showUltimateShowcase) {
       this.drawUltimateShowcase(ctx, ultFighter);
+    }
+
+    if (this.finisherFighter) {
+      this.drawFinisherShowcase(ctx, this.finisherFighter);
     }
 
     // 绘制打击像素粒子
@@ -237,6 +246,26 @@ export class GameEngine {
       ctx.restore();
     }
 
+    ctx.restore();
+  }
+
+  drawFinisherShowcase(ctx, fighter) {
+    const frame = fighter.spriteAnimator?.getCurrentFrame('finish');
+    if (!frame) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(247, 253, 246, 0.94)';
+    ctx.fillRect(0, 0, this.arenaWidth, this.arenaHeight);
+    ctx.translate(this.arenaWidth / 2, this.groundY);
+    ctx.scale(fighter.facing, 1);
+    const height = 300;
+    const width = frame.width / frame.height * height;
+    ctx.drawImage(frame, -width / 2, -height, width, height);
+    ctx.restore();
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#166534';
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText('ENFJ · 同理心送花', this.arenaWidth / 2, 52);
     ctx.restore();
   }
 

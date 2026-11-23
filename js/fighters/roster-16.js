@@ -238,14 +238,15 @@ export const MBTI_16_DATA = [
     groupName: '外交家',
     color: '#14b8a6',
     archetype: 'melee',
-    skillType: 'dash',
+    skillType: 'projectile',
     basicQuote: '相信自己!',
     stats: { hp: 110, speed: 340, jump: 640 },
     bio: '随时随地给人灌鸡汤的热血班长，哪怕挨打也要先夸对手拳法真棒。',
     moves: {
-      basic: { name: '热情鼓舞', desc: '充满正能量的近战连击。' },
-      skill: { name: '灵魂共振', desc: '大步向前突进并震飞对手。' },
-      ultimate: { name: '高光演讲', desc: '霸体爆发全屏感染力，重创近身敌人。' }
+      basic: { name: '重剑连段', desc: '轻击五连、重击三连，接招时省去中段起手与收招。' },
+      skill: { name: '三连剑气', desc: '连续发射三道圆弧形剑气投掷物。' },
+      special: { name: '气焰共鸣', desc: '为自身附加短暂增幅，加快重剑连段。' },
+      ultimate: { name: '耀光破阵斩', desc: '蓄力后发射更大、更远的圆弧剑气投掷物。' }
     }
   },
   {

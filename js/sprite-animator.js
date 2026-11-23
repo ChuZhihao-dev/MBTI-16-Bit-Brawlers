@@ -39,7 +39,9 @@ export class SpriteAnimator {
       const dstW = Math.max(1, Math.round((cropW / cropH) * dstH));
 
       const sliceCount = cfg.useFirstFrameOnly ? 1 : totalFrames;
-      for (let i = 0; i < sliceCount; i++) {
+      const frameStart = cfg.frameStart ?? 0;
+      for (let frame = 0; frame < sliceCount; frame++) {
+        const i = frameStart + frame;
         const col = i % cols;
         const row = Math.floor(i / cols);
         const off = document.createElement('canvas');
@@ -61,11 +63,41 @@ export class SpriteAnimator {
         if (cfg.removeWhiteBg !== false) {
           this.removeBorderWhiteBg(octx, dstW, dstH);
         }
-        entry.frames.push(off);
+        entry.frames.push(cfg.trimToContent ? this.trimToContent(off, dstH) : off);
       }
       entry.loaded = true;
     };
     img.src = cfg.src;
+  }
+
+  /** 仅在角色显式启用时，将每帧的可见内容等高缩放并裁掉透明留边。 */
+  trimToContent(frame, targetHeight) {
+    const ctx = frame.getContext('2d');
+    const { data } = ctx.getImageData(0, 0, frame.width, frame.height);
+    let left = frame.width;
+    let right = -1;
+    let top = frame.height;
+    let bottom = -1;
+    for (let y = 0; y < frame.height; y++) {
+      for (let x = 0; x < frame.width; x++) {
+        if (data[(y * frame.width + x) * 4 + 3] < 32) continue;
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+    if (right < left || bottom < top) return frame;
+    const cropWidth = right - left + 1;
+    const cropHeight = bottom - top + 1;
+    const normalized = document.createElement('canvas');
+    normalized.height = targetHeight;
+    normalized.width = Math.max(1, Math.round(cropWidth / cropHeight * targetHeight));
+    normalized.getContext('2d').drawImage(
+      frame, left, top, cropWidth, cropHeight,
+      0, 0, normalized.width, normalized.height
+    );
+    return normalized;
   }
 
   /**

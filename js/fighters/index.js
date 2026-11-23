@@ -2,6 +2,7 @@ import { INTJ } from './intj.js';
 import { INFJ } from './infj.js';
 import { ENTP } from './entp.js';
 import { ENFP } from './enfp.js';
+import { ENFJ } from './enfj.js';
 import { ISFP } from './isfp.js';
 import { GenericMBTIFighter, MBTI_16_DATA } from './roster-16.js';
 
@@ -10,6 +11,7 @@ const CUSTOM_CLASSES = {
   infj: INFJ,
   entp: ENTP,
   enfp: ENFP,
+  enfj: ENFJ,
   isfp: ISFP
 };
 

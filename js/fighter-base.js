@@ -44,6 +44,7 @@ export class FighterBase {
     this.jumpBufferTimer = 0;
     this.animState = 'idle';
     this.spriteHeight = config.spriteHeight ?? 118;
+    this.spriteFootOffset = config.spriteFootOffset ?? 6;
     this.spriteAnimator = config.sprites
       ? new SpriteAnimator(config.sprites, this.spriteHeight)
       : null;
@@ -52,6 +53,7 @@ export class FighterBase {
     this.statusEffects = {
       rooted: 0,      // 禁锢：无法移动和跳跃
       confused: 0,    // 混乱：左右方向反转
+      slowed: 0,      // 减速：颜料命中后短暂降低移速
       invincible: 0,  // 无敌：免疫伤害与击飞
       superArmor: 0,  // 霸体：受击不击飞
       exhausted: 0,   // 虚弱：无法移动与释放技能
@@ -122,7 +124,7 @@ export class FighterBase {
       if (this.statusEffects.confused > 0) moveDir *= -1;
 
       if (moveDir !== 0) {
-        this.vx = moveDir * this.speed;
+        this.vx = moveDir * this.speed * (this.statusEffects.slowed > 0 ? 0.65 : 1);
         this.facing = moveDir;
       } else {
         this.vx *= Math.pow(0.0002, dt);
@@ -341,13 +343,14 @@ export class FighterBase {
         ctx.filter = 'brightness(2.5)';
       }
       // 若该动作帧使用高清 renderHeight，则在普通舞台上按 spriteHeight 等比显示
-      const drawH = Math.min(spriteFrame.height, this.spriteHeight);
+      const drawH = Math.min(spriteFrame.height, this.spriteHeight)
+        * (this.getSpriteRenderScale?.(spriteFrame) ?? 1);
       const drawW = (spriteFrame.width / spriteFrame.height) * drawH;
       // 脚底对齐碰撞盒底部 (halfH)
       ctx.drawImage(
         spriteFrame,
         -drawW / 2,
-        halfH - drawH + 6,
+        halfH - drawH + this.spriteFootOffset,
         drawW,
         drawH
       );
@@ -400,7 +403,7 @@ export class FighterBase {
       ctx.restore();
     }
 
-    if (this.statusEffects.invincible > 0) {
+    if (this.statusEffects.invincible > 0 && !this.suppressInvincibilityOutline) {
       ctx.strokeStyle = '#c084fc';
       ctx.lineWidth = 2;
       ctx.strokeRect(-halfW - 6, -halfH - 6, this.width + 12, this.height + 12);

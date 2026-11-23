@@ -6,7 +6,12 @@ const coverScreen = document.getElementById('cover-screen');
 const selectScreen = document.getElementById('select-screen');
 const fightScreen = document.getElementById('fight-screen');
 
-const sfxToggleBtn = document.getElementById('sfx-toggle-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const pauseOverlay = document.getElementById('pause-overlay');
+const soundSetting = document.getElementById('sound-setting');
+const showcaseSetting = document.getElementById('showcase-setting');
+const resumeBtn = document.getElementById('resume-btn');
+const gameOverBanner = document.getElementById('game-over-banner');
 const coverMarquee = document.getElementById('cover-marquee');
 const enterSelectBtn = document.getElementById('enter-select-btn');
 const backCoverBtn = document.getElementById('back-cover-btn');
@@ -34,6 +39,8 @@ const backSelectBtn = document.getElementById('back-select-btn');
 const fillEpBtn = document.getElementById('fill-ep-btn');
 const resetRoundBtn = document.getElementById('reset-round-btn');
 const fightBackSelectBtn = document.getElementById('fight-back-select-btn');
+const p1ControlsHint = document.getElementById('p1-controls-hint');
+const p2ControlsHint = document.getElementById('p2-controls-hint');
 
 const canvas = document.getElementById('game-canvas');
 const engine = new GameEngine(canvas);
@@ -55,6 +62,27 @@ let gameState = 'COVER'; // COVER | SELECT | VS | FIGHT | RESULT
 let matchTimer = 99;
 let lastTime = 0;
 let vsTimerIds = [];
+let paused = false;
+let finisher = null;
+function showGameOverBanner(visible) {
+  gameOverBanner.hidden = !visible;
+  gameOverBanner.classList.toggle('hidden', !visible);
+}
+engine.onUltimateKo = (winner, loser) => {
+  if (finisher) return;
+  const remainingShowcase = engine.showUltimateShowcase && winner.ultimateAnimTimer > 0;
+  finisher = {
+    winner, loser,
+    phase: remainingShowcase ? 'showcase' : 'gameover',
+    elapsed: 0,
+    specialFinish: true
+  };
+  engine.projectiles = [];
+  if (finisher.phase === 'gameover') {
+    winner.ultimateAnimTimer = 0;
+    showGameOverBanner(true);
+  }
+};
 
 const keysDown = new Set();
 const keysJustPressed = new Set();
@@ -89,6 +117,10 @@ window.addEventListener('keyup', (e) => {
 });
 
 function handleMenuShortcut(e) {
+  if (gameState === 'FIGHT' && e.code === 'Escape') {
+    setPaused(!paused);
+    return;
+  }
   if (gameState === 'COVER') {
     if (e.code === 'Enter' || e.code === 'Space') {
       enterSelectScreen('ALL');
@@ -142,6 +174,28 @@ function switchScreen(target) {
 
 function getPlayerInput(playerIndex) {
   if (playerIndex === 1) {
+    if (p1?.id === 'enfj') {
+      return {
+        left: keysDown.has('KeyA'), right: keysDown.has('KeyD'),
+        up: keysJustPressed.has('KeyW'), guard: keysDown.has('KeyS'),
+        lightAttack: keysJustPressed.has('KeyJ'), heavyAttack: keysJustPressed.has('KeyK'),
+        dash: keysJustPressed.has('KeyL'), rangedAttack: keysJustPressed.has('KeyU'),
+        special: keysJustPressed.has('KeyI'), ultimate: keysJustPressed.has('KeyO')
+      };
+    }
+    if (p1?.id === 'isfp') {
+      return {
+        left: keysDown.has('KeyA'),
+        right: keysDown.has('KeyD'),
+        up: keysJustPressed.has('KeyW'),
+        dash: keysJustPressed.has('KeyL'),
+        lightAttack: keysJustPressed.has('KeyJ'),
+        heavyAttack: keysJustPressed.has('KeyK'),
+        paintProjectile: keysJustPressed.has('KeyU'),
+        inspirationDash: keysJustPressed.has('KeyI'),
+        ultimate: keysJustPressed.has('KeyO')
+      };
+    }
     return {
       left: keysDown.has('KeyA'),
       right: keysDown.has('KeyD'),
@@ -151,14 +205,36 @@ function getPlayerInput(playerIndex) {
       ultimate: keysJustPressed.has('KeyL')
     };
   }
+  if (p2?.id === 'enfj') {
+    const pressed = (digit) => keysJustPressed.has(`Digit${digit}`) || keysJustPressed.has(`Numpad${digit}`);
+    return {
+      left: keysDown.has('ArrowLeft'), right: keysDown.has('ArrowRight'),
+      up: keysJustPressed.has('ArrowUp'), guard: keysDown.has('ArrowDown'),
+      lightAttack: pressed(4), heavyAttack: pressed(5), dash: pressed(6),
+      rangedAttack: pressed(7), special: pressed(8), ultimate: pressed(9)
+    };
+  }
   return {
     left: keysDown.has('ArrowLeft'),
     right: keysDown.has('ArrowRight'),
     up: keysJustPressed.has('ArrowUp'),
-    attack: keysJustPressed.has('KeyU') || keysJustPressed.has('Numpad1'),
-    skill: keysJustPressed.has('KeyI') || keysJustPressed.has('Numpad2'),
-    ultimate: keysJustPressed.has('KeyO') || keysJustPressed.has('Numpad3')
+    attack: keysJustPressed.has('Numpad1') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyU')),
+    skill: keysJustPressed.has('Numpad2') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyI')),
+    ultimate: keysJustPressed.has('Numpad3') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyO'))
   };
+}
+
+function updateControlsHint() {
+  p1ControlsHint.innerHTML = selectedP1 === 'enfj'
+    ? '<strong>1P ENFJ:</strong> A/D 移动 · W 跳 · S 防御 · J 轻击 · K 重击 · L 冲刺 · U 三连剑气 · I 气焰共鸣 · O 必杀'
+    : selectedP1 === 'isfp'
+      ? '<strong>1P ISFP:</strong> A/D 移动 · W 跳 · A/D+L 冲刺 · J 轻击 · K 重击 · U 颜料弹 · I 彩绘突刺 · O 必杀'
+      : '<strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招';
+  p2ControlsHint.innerHTML = selectedP2 === 'enfj'
+    ? '<strong>2P ENFJ:</strong> ←/→ 移动 · ↑ 跳 · ↓ 防御 · 4 轻击 · 5 重击 · 6 冲刺 · 7 三连剑气 · 8 气焰共鸣 · 9 必杀'
+    : selectedP1 === 'isfp' || selectedP1 === 'enfj'
+      ? '<strong>2P:</strong> ←/→ 移动 · ↑ 跳 · 小键盘 1 普攻 · 2 特技 · 3 大招'
+      : '<strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招';
 }
 
 /**
@@ -189,7 +265,8 @@ function buildFallbackPosterUrl(fighter) {
 
 function createPosterImgHtml(fighter) {
   const fallback = buildFallbackPosterUrl(fighter);
-  return `<img src="${fighter.posterPath}" alt="${fighter.name} 海报" onerror="this.onerror=null;this.src='${fallback}';" />`;
+  const src = fighter.id === 'infj' ? fallback : fighter.posterPath;
+  return `<img src="${src}" alt="${fighter.name} 海报" onerror="this.onerror=null;this.src='${fallback}';" />`;
 }
 
 function setImgWithFallback(imgEl, fighter) {
@@ -198,7 +275,7 @@ function setImgWithFallback(imgEl, fighter) {
     imgEl.onerror = null;
     imgEl.src = fallback;
   };
-  imgEl.src = fighter.posterPath;
+  imgEl.src = fighter.id === 'infj' ? fallback : fighter.posterPath;
   imgEl.alt = fighter.name;
 }
 
@@ -217,6 +294,13 @@ function renderCoverMarquee() {
 
 function renderSpotlight(container, playerIndex, fighterId, { isPreview = false, animatePop = false } = {}) {
   const f = getFighterMeta(fighterId);
+  const movesHtml = playerIndex === 1 && fighterId === 'isfp'
+    ? '<li><strong>[J/K] 甩笔点刺 / 泼墨横扫：</strong>轻击可接重击。</li>'
+      + '<li><strong>[U/I] 颜料弹 / 彩绘突刺：</strong>中距离牵制或突进爆发。</li>'
+      + '<li><strong>[O] 万象泼彩狂想曲：</strong>聚能后释放大范围泼彩。</li>'
+    : `<li><strong>[普攻] ${f.moves.basic.name}：</strong>${f.moves.basic.desc}</li>
+        <li><strong>[特技] ${f.moves.skill.name}：</strong>${f.moves.skill.desc}</li>
+        <li><strong>[奥义] ${f.moves.ultimate.name}：</strong>${f.moves.ultimate.desc}</li>`;
   const tag = playerIndex === 1 ? '1P' : '2P';
   const cls = playerIndex === 1 ? 'p1' : 'p2';
   container.classList.toggle('active-slot', activeSlot === playerIndex);
@@ -253,9 +337,7 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
         </div>
       </div>
       <ul class="spotlight-moves">
-        <li><strong>[普攻] ${f.moves.basic.name}：</strong>${f.moves.basic.desc}</li>
-        <li><strong>[特技] ${f.moves.skill.name}：</strong>${f.moves.skill.desc}</li>
-        <li><strong>[奥义] ${f.moves.ultimate.name}：</strong>${f.moves.ultimate.desc}</li>
+        ${movesHtml}
       </ul>
     </div>
   `;
@@ -288,6 +370,7 @@ function updateKeyboardFocusAndPreview() {
 }
 
 function renderSelectScreen({ animateSlot = 0 } = {}) {
+  updateControlsHint();
   updateSpotlights({ animateSlot });
 
   rosterGrid.innerHTML = '';
@@ -451,12 +534,21 @@ backCoverBtn.addEventListener('click', () => {
   switchScreen(coverScreen);
 });
 
-sfxToggleBtn.addEventListener('click', () => {
-  const muted = sfx.toggleMute();
-  sfxToggleBtn.textContent = muted ? '🔇 静音' : '🔊 音效';
-  sfxToggleBtn.classList.toggle('muted', muted);
-  if (!muted) sfx.tick();
-});
+function setPaused(value) {
+  paused = value;
+  pauseOverlay.hidden = !value;
+  pauseOverlay.classList.toggle('hidden', !value);
+  pauseBtn.textContent = value ? '▶ 继续' : '⏸ 暂停';
+  if (value) resumeBtn.focus();
+  else pauseBtn.focus();
+  keysDown.clear();
+  keysJustPressed.clear();
+}
+pauseBtn.addEventListener('click', () => setPaused(!paused));
+resumeBtn.addEventListener('click', () => setPaused(false));
+soundSetting.addEventListener('change', () => { sfx.muted = !soundSetting.checked; });
+engine.showUltimateShowcase = showcaseSetting.checked;
+showcaseSetting.addEventListener('change', () => { engine.showUltimateShowcase = showcaseSetting.checked; });
 
 function clearVsTimers() {
   vsTimerIds.forEach((id) => clearTimeout(id));
@@ -500,6 +592,10 @@ function launchMatchWithVsSplash() {
 vsOverlay.addEventListener('click', finishVsSplash);
 
 function startMatch() {
+  finisher = null;
+  showGameOverBanner(false);
+  setPaused(false);
+  updateControlsHint();
   engine.reset();
   p1 = createFighter(selectedP1, {
     playerIndex: 1,
@@ -533,8 +629,13 @@ function updateHud() {
   document.getElementById('p1-hp-bar').style.width = `${p1Pct}%`;
   document.getElementById('p1-hp-trail').style.width = `${p1Pct}%`;
   document.getElementById('p1-ep-bar').style.width = `${(p1.ep / p1.maxEp) * 100}%`;
-  document.getElementById('p1-ep-text').textContent = p1.ep >= 100 ? 'MAX! 按 L' : `EP ${Math.floor(p1.ep)}%`;
-  document.getElementById('p1-cd-text').textContent = p1.skillCd > 0 ? `CD ${p1.skillCd.toFixed(1)}s` : 'SKILL READY';
+  document.getElementById('p1-ep-text').textContent = p1.ep >= 100
+    ? `MAX! 按 ${['isfp', 'enfj'].includes(p1.id) ? 'O' : 'L'}` : `EP ${Math.floor(p1.ep)}%`;
+  document.getElementById('p1-cd-text').textContent = p1.id === 'isfp'
+    ? `U ${p1.paintCd > 0 ? p1.paintCd.toFixed(1) + 's' : 'READY'} · I ${p1.inspirationCd > 0 ? p1.inspirationCd.toFixed(1) + 's' : 'READY'}`
+    : p1.id === 'enfj'
+      ? `U ${p1.skillCd > 0 ? p1.skillCd.toFixed(1) + 's' : 'READY'} · I ${p1.buffTimer > 0 ? 'BUFF ' + p1.buffTimer.toFixed(1) + 's' : p1.buffCooldown > 0 ? p1.buffCooldown.toFixed(1) + 's' : 'READY'}`
+    : (p1.skillCd > 0 ? `CD ${p1.skillCd.toFixed(1)}s` : 'SKILL READY');
   document.getElementById('hud-p1').classList.toggle('low-hp', p1Pct > 0 && p1Pct <= 25);
   document.getElementById('hud-p1').classList.toggle('ep-max', p1.ep >= 100);
 
@@ -543,8 +644,11 @@ function updateHud() {
   document.getElementById('p2-hp-bar').style.width = `${p2Pct}%`;
   document.getElementById('p2-hp-trail').style.width = `${p2Pct}%`;
   document.getElementById('p2-ep-bar').style.width = `${(p2.ep / p2.maxEp) * 100}%`;
-  document.getElementById('p2-ep-text').textContent = p2.ep >= 100 ? 'MAX! 按 O/3' : `EP ${Math.floor(p2.ep)}%`;
-  document.getElementById('p2-cd-text').textContent = p2.skillCd > 0 ? `CD ${p2.skillCd.toFixed(1)}s` : 'SKILL READY';
+  document.getElementById('p2-ep-text').textContent = p2.ep >= 100
+    ? `MAX! 按 ${p2.id === 'enfj' ? '9' : ['isfp', 'enfj'].includes(p1.id) ? '小键盘 3' : 'O/3'}` : `EP ${Math.floor(p2.ep)}%`;
+  document.getElementById('p2-cd-text').textContent = p2.id === 'enfj'
+    ? `7 ${p2.skillCd > 0 ? p2.skillCd.toFixed(1) + 's' : 'READY'} · 8 ${p2.buffTimer > 0 ? 'BUFF ' + p2.buffTimer.toFixed(1) + 's' : p2.buffCooldown > 0 ? p2.buffCooldown.toFixed(1) + 's' : 'READY'}`
+    : p2.skillCd > 0 ? `CD ${p2.skillCd.toFixed(1)}s` : 'SKILL READY';
   document.getElementById('hud-p2').classList.toggle('low-hp', p2Pct > 0 && p2Pct <= 25);
   document.getElementById('hud-p2').classList.toggle('ep-max', p2.ep >= 100);
 
@@ -552,6 +656,7 @@ function updateHud() {
 }
 
 function finishMatch(winnerLabel, subtext, winnerId = null) {
+  engine.finisherFighter = null;
   gameState = 'RESULT';
   sfx.ko();
   winnerText.textContent = winnerLabel;
@@ -565,12 +670,62 @@ function finishMatch(winnerLabel, subtext, winnerId = null) {
   resultOverlay.classList.remove('hidden');
 }
 
+function advanceFinisher(dt) {
+  const state = finisher;
+  if (!state) return;
+  if (state.phase === 'showcase') {
+    state.winner.ultimateAnimTimer = Math.max(0, state.winner.ultimateAnimTimer - dt);
+    state.winner.spriteAnimator?.update(dt, 'ultimate');
+    if (state.winner.ultimateAnimTimer <= 0) {
+      state.phase = 'gameover';
+      state.elapsed = 0;
+      showGameOverBanner(true);
+    }
+  } else if (state.phase === 'gameover') {
+    state.elapsed += dt;
+    if (state.elapsed >= 1) {
+      showGameOverBanner(false);
+      state.phase = 'animation';
+      state.elapsed = 0;
+      if (state.specialFinish) {
+        state.winner.showFrame?.('finish', 0);
+        engine.finisherFighter = state.winner;
+      } else if (state.loser.id !== 'enfj') {
+        state.loser.hiddenForFinisher = true;
+      }
+    }
+  } else if (state.phase === 'animation') {
+    state.elapsed += dt;
+    if (state.specialFinish) state.winner.showFrame?.('finish', Math.min(23, Math.floor(state.elapsed * 15)));
+    state.loser.showFrame?.('ko', Math.min(47, Math.floor(state.elapsed * 30)));
+    if (state.elapsed >= 24 / 15) {
+      if (state.specialFinish) state.winner.showFrame?.('finish', 23);
+      state.phase = 'hold';
+      state.elapsed = 0;
+    }
+  } else if (state.phase === 'hold') {
+    state.elapsed += dt;
+    if (state.elapsed >= 1) {
+      const winner = state.winner;
+      const tag = winner.playerIndex === 1 ? '1P' : '2P';
+      finishMatch(`${tag} ${winner.name} WINS!`,
+        state.specialFinish ? '耀光之后，仍以同理心致意。' : '战斗结束。', winner.id);
+      finisher = null;
+    }
+  }
+}
+
 function gameLoop(timestamp) {
   if (!lastTime) lastTime = timestamp;
   const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
   lastTime = timestamp;
 
-  if (gameState === 'FIGHT') {
+  if (gameState === 'FIGHT' && !paused) {
+    if (finisher) {
+      advanceFinisher(dt);
+      engine.render(p1, p2);
+      updateHud();
+    } else {
     const someoneInUlt = p1.ultimateAnimTimer > 0 || p2.ultimateAnimTimer > 0;
     if (!someoneInUlt) {
       matchTimer = Math.max(0, matchTimer - dt);
@@ -578,11 +733,22 @@ function gameLoop(timestamp) {
     const p1Input = getPlayerInput(1);
     const p2Input = getPlayerInput(2);
     engine.update(dt, p1, p2, p1Input, p2Input);
+    if (!finisher && (p1.hp <= 0 || p2.hp <= 0)) {
+      const winner = p1.hp > 0 ? p1 : p2;
+      const loser = winner === p1 ? p2 : p1;
+      engine.projectiles = [];
+      if (loser.id === 'enfj') {
+        finisher = { winner, loser, phase: 'animation', elapsed: 0, specialFinish: false };
+      } else {
+        const tag = winner.playerIndex === 1 ? '1P' : '2P';
+        finishMatch(`${tag} ${winner.name} WINS!`, '对手血量归零。', winner.id);
+      }
+    }
     engine.render(p1, p2);
     updateHud();
 
     // 已移除血量见底即结束的效果，确保完整大招画面可不受中断播放；仅在非大招期间且时间耗尽时结算
-    if (matchTimer <= 0 && !someoneInUlt) {
+    if (!finisher && gameState === 'FIGHT' && matchTimer <= 0 && !someoneInUlt) {
       if (p1.hp === p2.hp) {
         finishMatch('TIME UP · DRAW!', '旗鼓相当的性格对决！', null);
       } else {
@@ -590,6 +756,7 @@ function gameLoop(timestamp) {
         const win = p1Wins ? `1P ${p1.name}` : `2P ${p2.name}`;
         finishMatch(`${win} WINS!`, '时间耗尽，剩余血量更高者获胜！', p1Wins ? selectedP1 : selectedP2);
       }
+    }
     }
   }
 
