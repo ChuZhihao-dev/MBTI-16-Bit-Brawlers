@@ -15,18 +15,29 @@
       </div>
       <div class="header-right">
         <div class="controls-hint">
-          <span id="p1-controls-hint"><strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招</span>
-          <span id="p2-controls-hint"><strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招</span>
+          <span id="p1-controls-hint"><strong>1P:</strong> WASD 移动 · J 普攻 · K 性格技能 · L 闪避 · U/I 小技能 · O 大招</span>
+          <span id="p2-controls-hint"><strong>2P:</strong> ↑↓←→ 移动 · 1 普攻 · 2 性格技能 · 3 闪避 · 4/5 小技能 · 6 大招</span>
         </div>
         <button id="pause-btn" class="sfx-btn" type="button" title="暂停与设置">⏸ 暂停</button>
       </div>
     </header>
-    <div id="pause-overlay" class="settings-overlay hidden" hidden role="dialog" aria-modal="true" aria-label="暂停设置">
+    <div id="pause-overlay" class="settings-overlay hidden" hidden role="dialog" aria-modal="true" aria-label="暂停与操作设置">
       <div class="settings-card">
-        <h2>游戏暂停</h2>
-        <label><input id="sound-setting" type="checkbox" checked /> 音效开关</label>
-        <label><input id="showcase-setting" type="checkbox" checked /> 终极奥义演出开关</label>
-        <button id="resume-btn" class="arcade-btn primary" type="button">继续游戏</button>
+        <div class="settings-header">
+          <h2>暂停与操作设置</h2>
+          <button id="reset-bindings-btn" class="tool-btn" type="button">↺ 恢复默认按键</button>
+        </div>
+        <div class="settings-toggles">
+          <label><input id="sound-setting" type="checkbox" checked /> 音效开关</label>
+          <label><input id="showcase-setting" type="checkbox" checked /> 终极奥义演出开关</label>
+        </div>
+        <div class="keybindings-section">
+          <div class="keybindings-hint" id="keybindings-status">点击任意按键即可自定义键位（按 Esc 取消）</div>
+          <div id="keybindings-grid" class="keybindings-grid"></div>
+        </div>
+        <div class="settings-footer">
+          <button id="resume-btn" class="arcade-btn primary" type="button">继续游戏</button>
+        </div>
       </div>
     </div>
 

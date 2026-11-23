@@ -11,6 +11,9 @@ const pauseOverlay = document.getElementById('pause-overlay');
 const soundSetting = document.getElementById('sound-setting');
 const showcaseSetting = document.getElementById('showcase-setting');
 const resumeBtn = document.getElementById('resume-btn');
+const resetBindingsBtn = document.getElementById('reset-bindings-btn');
+const keybindingsGrid = document.getElementById('keybindings-grid');
+const keybindingsStatus = document.getElementById('keybindings-status');
 const gameOverBanner = document.getElementById('game-over-banner');
 const coverMarquee = document.getElementById('cover-marquee');
 const enterSelectBtn = document.getElementById('enter-select-btn');
@@ -87,6 +90,145 @@ engine.onUltimateKo = (winner, loser) => {
 const keysDown = new Set();
 const keysJustPressed = new Set();
 
+const KEY_BINDINGS_STORAGE_KEY = 'mbti_brawlers_key_bindings_v1';
+const KEY_BINDING_ACTIONS = [
+  { key: 'left', label: '向左移动' },
+  { key: 'right', label: '向右移动' },
+  { key: 'up', label: '跳跃' },
+  { key: 'guard', label: '下蹲 / 防御' },
+  { key: 'lightAttack', label: '普通攻击' },
+  { key: 'heavyAttack', label: '角色性格技能' },
+  { key: 'dash', label: '闪避 / 冲刺' },
+  { key: 'skill1', label: '小技能 1' },
+  { key: 'skill2', label: '小技能 2' },
+  { key: 'ultimate', label: '终极奥义' }
+];
+const DEFAULT_KEY_BINDINGS = {
+  1: {
+    left: 'KeyA',
+    right: 'KeyD',
+    up: 'KeyW',
+    guard: 'KeyS',
+    lightAttack: 'KeyJ',
+    heavyAttack: 'KeyK',
+    dash: 'KeyL',
+    skill1: 'KeyU',
+    skill2: 'KeyI',
+    ultimate: 'KeyO'
+  },
+  2: {
+    left: 'ArrowLeft',
+    right: 'ArrowRight',
+    up: 'ArrowUp',
+    guard: 'ArrowDown',
+    lightAttack: 'Numpad1',
+    heavyAttack: 'Numpad2',
+    dash: 'Numpad3',
+    skill1: 'Numpad4',
+    skill2: 'Numpad5',
+    ultimate: 'Numpad6'
+  }
+};
+
+function loadKeyBindings() {
+  const fallback = {
+    1: { ...DEFAULT_KEY_BINDINGS[1] },
+    2: { ...DEFAULT_KEY_BINDINGS[2] }
+  };
+  try {
+    const raw = localStorage.getItem(KEY_BINDINGS_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    for (const p of [1, 2]) {
+      for (const { key } of KEY_BINDING_ACTIONS) {
+        if (typeof parsed?.[p]?.[key] === 'string' && parsed[p][key]) {
+          fallback[p][key] = parsed[p][key];
+        }
+      }
+    }
+  } catch {
+    // Ignore storage errors and use defaults.
+  }
+  return fallback;
+}
+
+function saveKeyBindings() {
+  try {
+    localStorage.setItem(KEY_BINDINGS_STORAGE_KEY, JSON.stringify(keyBindings));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+let keyBindings = loadKeyBindings();
+let listeningBinding = null;
+
+function formatKeyCode(code, compact = false) {
+  if (!code) return '?';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return compact ? code.slice(6) : `小键盘 ${code.slice(6)}`;
+  const map = {
+    ArrowLeft: '←',
+    ArrowRight: '→',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    Space: 'Space',
+    ShiftLeft: 'L-Shift',
+    ShiftRight: 'R-Shift',
+    ControlLeft: 'L-Ctrl',
+    ControlRight: 'R-Ctrl',
+    AltLeft: 'L-Alt',
+    AltRight: 'R-Alt',
+    Enter: 'Enter',
+    Semicolon: ';',
+    Quote: "'",
+    Comma: ',',
+    Period: '.',
+    Slash: '/',
+    BracketLeft: '[',
+    BracketRight: ']'
+  };
+  return map[code] || code;
+}
+
+function isCodeExplicitlyBound(code) {
+  return [1, 2].some((p) => Object.values(keyBindings[p]).includes(code));
+}
+
+function renderKeybindingsUI(statusMessage = '点击任意按键即可自定义键位（按 Esc 取消）') {
+  if (!keybindingsGrid) return;
+  if (keybindingsStatus) {
+    keybindingsStatus.textContent = listeningBinding
+      ? `正在为 ${listeningBinding.player}P 设置「${listeningBinding.label}」，请按下新按键（Esc 取消）...`
+      : statusMessage;
+    keybindingsStatus.classList.toggle('is-listening', Boolean(listeningBinding));
+  }
+  keybindingsGrid.innerHTML = [1, 2].map((player) => {
+    const rows = KEY_BINDING_ACTIONS.map(({ key, label }) => {
+      const isListening = listeningBinding?.player === player && listeningBinding?.action === key;
+      const codeLabel = isListening ? '请按键...' : formatKeyCode(keyBindings[player][key]);
+      return `
+        <div class="keybind-row">
+          <span>${label}</span>
+          <button
+            class="keybind-btn${isListening ? ' listening' : ''}"
+            type="button"
+            data-player="${player}"
+            data-action="${key}"
+          >${codeLabel}</button>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="keybind-col">
+        <h3 class="keybind-col-title">${player}P 按键设置</h3>
+        ${rows}
+      </div>
+    `;
+  }).join('');
+}
+
 const BLOCKED_KEYS = new Set([
   'ArrowUp',
   'ArrowDown',
@@ -102,6 +244,30 @@ function getVisibleFighters() {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (paused && listeningBinding) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.code === 'Escape') {
+      listeningBinding = null;
+      renderKeybindingsUI();
+      return;
+    }
+    const { player, action, label } = listeningBinding;
+    const prevCode = keyBindings[player][action];
+    for (const p of [1, 2]) {
+      for (const item of KEY_BINDING_ACTIONS) {
+        if ((p !== player || item.key !== action) && keyBindings[p][item.key] === e.code) {
+          keyBindings[p][item.key] = prevCode;
+        }
+      }
+    }
+    keyBindings[player][action] = e.code;
+    listeningBinding = null;
+    saveKeyBindings();
+    renderKeybindingsUI(`已将 ${player}P「${label}」绑定为 ${formatKeyCode(e.code)}`);
+    updateControlsHint();
+    return;
+  }
   if (BLOCKED_KEYS.has(e.code)) {
     e.preventDefault();
   }
@@ -117,6 +283,10 @@ window.addEventListener('keyup', (e) => {
 });
 
 function handleMenuShortcut(e) {
+  if (e.code === 'Escape' && paused) {
+    setPaused(false);
+    return;
+  }
   if (gameState === 'FIGHT' && e.code === 'Escape') {
     setPaused(!paused);
     return;
@@ -173,68 +343,68 @@ function switchScreen(target) {
 }
 
 function getPlayerInput(playerIndex) {
-  if (playerIndex === 1) {
-    if (p1?.id === 'enfj') {
-      return {
-        left: keysDown.has('KeyA'), right: keysDown.has('KeyD'),
-        up: keysJustPressed.has('KeyW'), guard: keysDown.has('KeyS'),
-        lightAttack: keysJustPressed.has('KeyJ'), heavyAttack: keysJustPressed.has('KeyK'),
-        dash: keysJustPressed.has('KeyL'), rangedAttack: keysJustPressed.has('KeyU'),
-        special: keysJustPressed.has('KeyI'), ultimate: keysJustPressed.has('KeyO')
-      };
+  const defaults = playerIndex === 1
+    ? { left: 'KeyA', right: 'KeyD', up: 'KeyW', guard: 'KeyS', lightAttack: 'KeyJ', heavyAttack: 'KeyK', dash: 'KeyL', skill1: 'KeyU', skill2: 'KeyI', ultimate: 'KeyO' }
+    : { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', guard: 'ArrowDown', lightAttack: 'Numpad1', heavyAttack: 'Numpad2', dash: 'Numpad3', skill1: 'Numpad4', skill2: 'Numpad5', ultimate: 'Numpad6' };
+  const binds = (typeof keyBindings !== 'undefined' && keyBindings?.[playerIndex]) || defaults;
+  const isBoundElsewhere = (code) => typeof isCodeExplicitlyBound === 'function' && isCodeExplicitlyBound(code);
+  const check = (set, code) => {
+    if (!code) return false;
+    if (set.has(code)) return true;
+    if (code.startsWith('Numpad')) {
+      const digit = `Digit${code.slice(6)}`;
+      if (!isBoundElsewhere(digit) && set.has(digit)) return true;
     }
-    if (p1?.id === 'isfp') {
-      return {
-        left: keysDown.has('KeyA'),
-        right: keysDown.has('KeyD'),
-        up: keysJustPressed.has('KeyW'),
-        dash: keysJustPressed.has('KeyL'),
-        lightAttack: keysJustPressed.has('KeyJ'),
-        heavyAttack: keysJustPressed.has('KeyK'),
-        paintProjectile: keysJustPressed.has('KeyU'),
-        inspirationDash: keysJustPressed.has('KeyI'),
-        ultimate: keysJustPressed.has('KeyO')
-      };
-    }
+    return false;
+  };
+  const down = (action) => check(keysDown, binds[action]);
+  const pressed = (action) => check(keysJustPressed, binds[action]);
+  const fighterId = playerIndex === 1 ? p1?.id : p2?.id;
+
+  if (fighterId === 'isfp') {
     return {
-      left: keysDown.has('KeyA'),
-      right: keysDown.has('KeyD'),
-      up: keysJustPressed.has('KeyW'),
-      attack: keysJustPressed.has('KeyJ'),
-      skill: keysJustPressed.has('KeyK'),
-      ultimate: keysJustPressed.has('KeyL')
+      left: down('left'),
+      right: down('right'),
+      up: pressed('up'),
+      lightAttack: pressed('lightAttack'),
+      heavyAttack: pressed('heavyAttack'),
+      dash: pressed('dash'),
+      paintProjectile: pressed('skill1'),
+      inspirationDash: pressed('skill2'),
+      ultimate: pressed('ultimate')
     };
   }
-  if (p2?.id === 'enfj') {
-    const pressed = (digit) => keysJustPressed.has(`Digit${digit}`) || keysJustPressed.has(`Numpad${digit}`);
+  if (fighterId === 'enfj') {
     return {
-      left: keysDown.has('ArrowLeft'), right: keysDown.has('ArrowRight'),
-      up: keysJustPressed.has('ArrowUp'), guard: keysDown.has('ArrowDown'),
-      lightAttack: pressed(4), heavyAttack: pressed(5), dash: pressed(6),
-      rangedAttack: pressed(7), special: pressed(8), ultimate: pressed(9)
+      left: down('left'),
+      right: down('right'),
+      up: pressed('up'),
+      guard: down('guard'),
+      lightAttack: pressed('lightAttack'),
+      heavyAttack: pressed('heavyAttack'),
+      dash: pressed('dash'),
+      rangedAttack: pressed('skill1'),
+      special: pressed('skill2'),
+      ultimate: pressed('ultimate')
     };
   }
   return {
-    left: keysDown.has('ArrowLeft'),
-    right: keysDown.has('ArrowRight'),
-    up: keysJustPressed.has('ArrowUp'),
-    attack: keysJustPressed.has('Numpad1') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyU')),
-    skill: keysJustPressed.has('Numpad2') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyI')),
-    ultimate: keysJustPressed.has('Numpad3') || (!['isfp', 'enfj'].includes(p1?.id) && keysJustPressed.has('KeyO'))
+    left: down('left'),
+    right: down('right'),
+    up: pressed('up'),
+    guard: down('guard'),
+    attack: pressed('lightAttack'),
+    skill: pressed('heavyAttack') || pressed('skill1') || pressed('skill2'),
+    ultimate: pressed('ultimate')
   };
 }
 
 function updateControlsHint() {
-  p1ControlsHint.innerHTML = selectedP1 === 'enfj'
-    ? '<strong>1P ENFJ:</strong> A/D 移动 · W 跳 · S 防御 · J 轻击 · K 重击 · L 冲刺 · U 三连剑气 · I 气焰共鸣 · O 必杀'
-    : selectedP1 === 'isfp'
-      ? '<strong>1P ISFP:</strong> A/D 移动 · W 跳 · A/D+L 冲刺 · J 轻击 · K 重击 · U 颜料弹 · I 彩绘突刺 · O 必杀'
-      : '<strong>1P:</strong> A/D 移动 · W 跳 · J 普攻 · K 特技 · L 大招';
-  p2ControlsHint.innerHTML = selectedP2 === 'enfj'
-    ? '<strong>2P ENFJ:</strong> ←/→ 移动 · ↑ 跳 · ↓ 防御 · 4 轻击 · 5 重击 · 6 冲刺 · 7 三连剑气 · 8 气焰共鸣 · 9 必杀'
-    : selectedP1 === 'isfp' || selectedP1 === 'enfj'
-      ? '<strong>2P:</strong> ←/→ 移动 · ↑ 跳 · 小键盘 1 普攻 · 2 特技 · 3 大招'
-      : '<strong>2P:</strong> ←/→ 移动 · ↑ 跳 · U(1) 普攻 · I(2) 特技 · O(3) 大招';
+  const fmt = (player, action) => formatKeyCode(keyBindings[player][action], true);
+  const p1Move = `${fmt(1, 'up')}${fmt(1, 'left')}${fmt(1, 'guard')}${fmt(1, 'right')}`;
+  const p2Move = `${fmt(2, 'up')}${fmt(2, 'guard')}${fmt(2, 'left')}${fmt(2, 'right')}`;
+  p1ControlsHint.innerHTML = `<strong>1P:</strong> ${p1Move} 移动 · ${fmt(1, 'lightAttack')} 普攻 · ${fmt(1, 'heavyAttack')} 性格技能 · ${fmt(1, 'dash')} 闪避 · ${fmt(1, 'skill1')}/${fmt(1, 'skill2')} 小技能 · ${fmt(1, 'ultimate')} 大招`;
+  p2ControlsHint.innerHTML = `<strong>2P:</strong> ${p2Move} 移动 · ${fmt(2, 'lightAttack')} 普攻 · ${fmt(2, 'heavyAttack')} 性格技能 · ${fmt(2, 'dash')} 闪避 · ${fmt(2, 'skill1')}/${fmt(2, 'skill2')} 小技能 · ${fmt(2, 'ultimate')} 大招`;
 }
 
 /**
@@ -294,10 +464,11 @@ function renderCoverMarquee() {
 
 function renderSpotlight(container, playerIndex, fighterId, { isPreview = false, animatePop = false } = {}) {
   const f = getFighterMeta(fighterId);
-  const movesHtml = playerIndex === 1 && fighterId === 'isfp'
-    ? '<li><strong>[J/K] 甩笔点刺 / 泼墨横扫：</strong>轻击可接重击。</li>'
-      + '<li><strong>[U/I] 颜料弹 / 彩绘突刺：</strong>中距离牵制或突进爆发。</li>'
-      + '<li><strong>[O] 万象泼彩狂想曲：</strong>聚能后释放大范围泼彩。</li>'
+  const movesHtml = fighterId === 'isfp'
+    ? `<li><strong>[${playerIndex === 1 ? 'J/K' : '4/5'}] 甩笔点刺 / 泼墨横扫：</strong>轻击可接重击。</li>
+       <li><strong>[${playerIndex === 1 ? 'L' : '6'}] 闪避：</strong>朝移动方向或当前朝向滑步，初段短暂无敌。</li>
+       <li><strong>[${playerIndex === 1 ? 'U/I' : '7/8'}] 颜料弹 / 彩绘突刺：</strong>中距离牵制或突进爆发。</li>
+       <li><strong>[${playerIndex === 1 ? 'O' : '9'}] 万象泼彩狂想曲：</strong>聚能后释放大范围泼彩。</li>`
     : `<li><strong>[普攻] ${f.moves.basic.name}：</strong>${f.moves.basic.desc}</li>
         <li><strong>[特技] ${f.moves.skill.name}：</strong>${f.moves.skill.desc}</li>
         <li><strong>[奥义] ${f.moves.ultimate.name}：</strong>${f.moves.ultimate.desc}</li>`;
@@ -536,16 +707,43 @@ backCoverBtn.addEventListener('click', () => {
 
 function setPaused(value) {
   paused = value;
+  listeningBinding = null;
   pauseOverlay.hidden = !value;
   pauseOverlay.classList.toggle('hidden', !value);
   pauseBtn.textContent = value ? '▶ 继续' : '⏸ 暂停';
-  if (value) resumeBtn.focus();
-  else pauseBtn.focus();
+  if (value) {
+    renderKeybindingsUI();
+    resumeBtn.focus();
+  } else {
+    pauseBtn.focus();
+  }
   keysDown.clear();
   keysJustPressed.clear();
 }
 pauseBtn.addEventListener('click', () => setPaused(!paused));
 resumeBtn.addEventListener('click', () => setPaused(false));
+keybindingsGrid?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.keybind-btn');
+  if (!btn) return;
+  const player = Number(btn.dataset.player);
+  const action = btn.dataset.action;
+  const item = KEY_BINDING_ACTIONS.find((entry) => entry.key === action);
+  if (!item) return;
+  sfx.tick();
+  listeningBinding = { player, action, label: item.label };
+  renderKeybindingsUI();
+});
+resetBindingsBtn?.addEventListener('click', () => {
+  sfx.tick();
+  keyBindings = {
+    1: { ...DEFAULT_KEY_BINDINGS[1] },
+    2: { ...DEFAULT_KEY_BINDINGS[2] }
+  };
+  listeningBinding = null;
+  saveKeyBindings();
+  renderKeybindingsUI('已恢复默认按键设置');
+  updateControlsHint();
+});
 soundSetting.addEventListener('change', () => { sfx.muted = !soundSetting.checked; });
 engine.showUltimateShowcase = showcaseSetting.checked;
 showcaseSetting.addEventListener('change', () => { engine.showUltimateShowcase = showcaseSetting.checked; });
@@ -645,8 +843,10 @@ function updateHud() {
   document.getElementById('p2-hp-trail').style.width = `${p2Pct}%`;
   document.getElementById('p2-ep-bar').style.width = `${(p2.ep / p2.maxEp) * 100}%`;
   document.getElementById('p2-ep-text').textContent = p2.ep >= 100
-    ? `MAX! 按 ${p2.id === 'enfj' ? '9' : ['isfp', 'enfj'].includes(p1.id) ? '小键盘 3' : 'O/3'}` : `EP ${Math.floor(p2.ep)}%`;
-  document.getElementById('p2-cd-text').textContent = p2.id === 'enfj'
+    ? `MAX! 按 ${['isfp', 'enfj'].includes(p2.id) ? '9' : ['isfp', 'enfj'].includes(p1.id) ? '小键盘 3' : 'O/3'}` : `EP ${Math.floor(p2.ep)}%`;
+  document.getElementById('p2-cd-text').textContent = p2.id === 'isfp'
+    ? `7 ${p2.paintCd > 0 ? p2.paintCd.toFixed(1) + 's' : 'READY'} · 8 ${p2.inspirationCd > 0 ? p2.inspirationCd.toFixed(1) + 's' : 'READY'}`
+    : p2.id === 'enfj'
     ? `7 ${p2.skillCd > 0 ? p2.skillCd.toFixed(1) + 's' : 'READY'} · 8 ${p2.buffTimer > 0 ? 'BUFF ' + p2.buffTimer.toFixed(1) + 's' : p2.buffCooldown > 0 ? p2.buffCooldown.toFixed(1) + 's' : 'READY'}`
     : p2.skillCd > 0 ? `CD ${p2.skillCd.toFixed(1)}s` : 'SKILL READY';
   document.getElementById('hud-p2').classList.toggle('low-hp', p2Pct > 0 && p2Pct <= 25);

@@ -14,7 +14,6 @@ const FRAME_STARTS = {
 
 export class ISFP extends FighterBase {
   constructor(config) {
-    const playerOne = config.playerIndex === 1;
     super({
       ...config,
       id: 'isfp',
@@ -25,9 +24,9 @@ export class ISFP extends FighterBase {
       speed: 340,
       jumpForce: 660,
       skillCdMax: 3.4,
-      spriteHeight: playerOne ? 128 : 124,
-      spriteFootOffset: playerOne ? 0 : 6,
-      sprites: playerOne ? {
+      spriteHeight: 128,
+      spriteFootOffset: 0,
+      sprites: {
         idle: { src: 'assets/fighters/isfp/frames/idle_sheet.png', frames: 4, fps: 6, loop: true, trimToContent: true },
         walk: { src: `${NEW_FRAMES}walk_sheet.png`, frames: 4, fps: 11, loop: true, trimToContent: true },
         jump: { src: `${NEW_FRAMES}jump_sheet.png`, frames: 4, fps: 9, loop: false, trimToContent: true },
@@ -42,32 +41,6 @@ export class ISFP extends FighterBase {
           src: `${NEW_FRAMES}ultimate_sheet.png`, cols: 4, rows: 4,
           frames: 16, fps: 12, loop: false, cropInset: 4, renderHeight: 280
         }
-      } : {
-        idle: { src: 'assets/fighters/isfp/frames/idle_sheet.png', frames: 4, fps: 7, loop: true },
-        walk: { src: 'assets/fighters/isfp/frames/walk_sheet.png', frames: 4, fps: 11, loop: true },
-        jump: { src: 'assets/fighters/isfp/frames/jump_sheet.png', frames: 4, fps: 9, loop: false },
-        attack: {
-          src: 'assets/fighters/isfp/frames/attack_sheet.png',
-          frames: 4,
-          frameDurations: [0.04, 0.04, 0.11, 0.08],
-          loop: false
-        },
-        hit: {
-          src: 'assets/fighters/isfp/frames/hit_sheet.png',
-          frames: 2,
-          frameDurations: [0.10, 0.08],
-          loop: false
-        },
-        ultimate: {
-          src: 'assets/fighters/isfp/frames/ult_sheet.jpeg',
-          cols: 4,
-          rows: 4,
-          frames: 16,
-          fps: 12,
-          loop: false,
-          cropInset: 5,
-          renderHeight: 280
-        }
       }
     });
     this.action = null;
@@ -75,16 +48,11 @@ export class ISFP extends FighterBase {
     this.paintCd = 0;
     this.inspirationCd = 0;
     this.landingTimer = 0;
-    this.paintOrbImage = playerOne ? new Image() : null;
-    if (this.paintOrbImage) this.paintOrbImage.src = `${NEW_FRAMES}paint_orb.png`;
+    this.paintOrbImage = new Image();
+    this.paintOrbImage.src = `${NEW_FRAMES}paint_orb.png`;
   }
 
   update(dt, input, opponent, context) {
-    if (this.playerIndex !== 1) {
-      super.update(dt, input, opponent, context);
-      return;
-    }
-
     this.dashCd = Math.max(0, this.dashCd - dt);
     this.paintCd = Math.max(0, this.paintCd - dt);
     this.inspirationCd = Math.max(0, this.inspirationCd - dt);
@@ -110,9 +78,9 @@ export class ISFP extends FighterBase {
     if (this.action) this.advanceAction(dt, input, opponent, context);
 
     if (!this.action) {
-      const direction = Number(input.right) - Number(input.left);
-      if (input.dash && direction !== 0 && this.onGround && this.dashCd <= 0 && this.statusEffects.rooted <= 0) {
-        this.facing = direction;
+      const direction = Number(Boolean(input.right)) - Number(Boolean(input.left));
+      if (input.dash && this.onGround && this.dashCd <= 0 && this.statusEffects.rooted <= 0) {
+        this.facing = direction || this.facing;
         this.dashCd = 0.85;
         this.beginAction('dash', 16 / 60);
       } else if (input.heavyAttack && this.basicCd <= 0) {
@@ -252,7 +220,7 @@ export class ISFP extends FighterBase {
   }
 
   takeDamage(amount, knockbackX, knockbackY, attacker, context, hitLabel = '') {
-    if (this.playerIndex === 1 && this.hitstunTimer <= 0 && this.action?.kind === 'dash'
+    if (this.hitstunTimer <= 0 && this.action?.kind === 'dash'
       && this.action.elapsed + FRAME_EPS >= 4 / 60
       && this.action.elapsed < 8 / 60 - FRAME_EPS) {
       context.spawnFloatingText(this.getCenterX(), this.y - 14, 'MISS!', '#a855f7');
@@ -261,205 +229,39 @@ export class ISFP extends FighterBase {
     return super.takeDamage(amount, knockbackX, knockbackY, attacker, context, hitLabel);
   }
 
-  // 颜料飞溅：发射绚丽的远程色彩弹
-  useBasicAttack(_opponent, context) {
-    this.attackAnimTimer = 0.28;
-    const palette = ['#f59e0b', '#ec4899', '#06b6d4', '#84cc16'];
-    const mainColor = palette[Math.floor(Math.random() * palette.length)];
-    const size = 22;
-
-    context.spawnProjectile({
-      owner: this,
-      x: this.facing === 1 ? this.x + this.width + 4 : this.x - size - 4,
-      y: this.y + 20,
-      width: size,
-      height: size,
-      vx: this.facing * 520,
-      lifetime: 0.85,
-      damage: 8,
-      knockbackX: 190,
-      knockbackY: -100,
-      color: mainColor,
-      hitLabel: '看我心情~',
-      draw(ctx) {
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-        ctx.save();
-        ctx.fillStyle = mainColor;
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.arc(cx - 3, cy - 3, 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    });
-  }
-
-  // 灵感爆发：投掷高饱和度艺术冲击波
-  useSkill(_opponent, context) {
-    this.attackAnimTimer = 0.34;
-    context.spawnFloatingText(this.getCenterX(), this.y - 18, '灵感爆发!', '#f59e0b');
-
-    const waveW = 42;
-    const waveH = 34;
-    context.spawnProjectile({
-      owner: this,
-      x: this.facing === 1 ? this.x + this.width + 2 : this.x - waveW - 2,
-      y: this.y + 14,
-      width: waveW,
-      height: waveH,
-      vx: this.facing * 450,
-      lifetime: 1.05,
-      damage: 14,
-      knockbackX: 280,
-      knockbackY: -170,
-      color: '#ec4899',
-      hitLabel: '审美暴击!',
-      draw(ctx) {
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-        ctx.save();
-        const colors = ['#f59e0b', '#ec4899', '#38bdf8'];
-        colors.forEach((c, idx) => {
-          ctx.fillStyle = c;
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(cx + (idx - 1) * 7, cy + (idx % 2 === 0 ? -4 : 4), 10 - idx, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        });
-        ctx.restore();
-      }
-    });
-  }
-
-  // 【行为艺术】：播放 16 帧作画召唤彩虹灵犬扑击与几何爆裂终结动画
+  // 万象泼彩狂想曲：双侧共用新必杀动作与判定。
   useUltimate(_opponent, context) {
-    if (this.playerIndex === 1) {
-      this.ultimateAnimTimer = 16 / 12;
-      this.applyStatus('invincible', 0.9);
-      context.spawnFloatingText(this.getCenterX(), this.y - 26, '【万象泼彩狂想曲】', '#facc15');
-
-      let elapsed = 0;
-      let hitDone = false;
-      const reach = 220;
-      context.spawnProjectile({
-        owner: this,
-        x: this.facing === 1 ? this.x + this.width - 8 : this.x - reach + 8,
-        y: this.y - 25,
-        width: reach,
-        height: this.height + 50,
-        lifetime: 1.2,
-        pierce: true,
-        update(dt) {
-          elapsed += dt;
-          this.x = this.owner.facing === 1
-            ? this.owner.x + this.owner.width - 8
-            : this.owner.x - reach + 8;
-          this.y = this.owner.y - 25;
-          if (!this.shaken && elapsed >= 0.75) {
-            this.shaken = true;
-            context.triggerShake(10, 0.24);
-          }
-        },
-        onHit(target, ctx) {
-          if (hitDone || elapsed < 0.75) return;
-          hitDone = target.takeDamage(26, this.owner.facing * 430, -300,
-            this.owner, ctx, '万象泼彩!');
-          if (hitDone) ctx.triggerHitstop(10);
-        },
-        draw() {}
-      });
-      return;
-    }
-
-    this.ultimateAnimTimer = 1.35;
-    this.applyStatus('invincible', 0.95);
-    context.spawnFloatingText(this.getCenterX(), this.y - 26, '【行为艺术】', '#facc15');
-
-    const facing = this.facing;
-    const hitWidth = 145;
-    const hitX = facing === 1 ? this.x + this.width - 12 : this.x - hitWidth + 12;
+    this.ultimateAnimTimer = 16 / 12;
+    this.applyStatus('invincible', 0.9);
+    context.spawnFloatingText(this.getCenterX(), this.y - 26, '【万象泼彩狂想曲】', '#facc15');
 
     let elapsed = 0;
-    let pounceDone = false;
-    let burstDone = false;
-    let shardWaveSpawned = false;
-
-    // 1. 近中距离跟随动画帧的二段判定（第 7 帧灵犬扑出 + 第 11 帧几何爆裂）
+    let hitDone = false;
+    const reach = 220;
     context.spawnProjectile({
       owner: this,
-      x: hitX,
-      y: this.y - 24,
-      width: hitWidth,
-      height: this.height + 24,
-      lifetime: 1.05,
+      x: this.facing === 1 ? this.x + this.width - 8 : this.x - reach + 8,
+      y: this.y - 25,
+      width: reach,
+      height: this.height + 50,
+      lifetime: 1.2,
       pierce: true,
       update(dt) {
         elapsed += dt;
-        // 保持判定框贴合小画家身前
         this.x = this.owner.facing === 1
-          ? this.owner.x + this.owner.width - 12
-          : this.owner.x - hitWidth + 12;
-        this.y = this.owner.y - 24;
-
-        // 第 10~11 帧（约 0.82s）几何爆裂，向前额外释放彩虹碎片冲击波
-        if (!shardWaveSpawned && elapsed >= 0.82) {
-          shardWaveSpawned = true;
-          context.triggerShake(9, 0.24);
-          const shardColors = ['#ef4444', '#f59e0b', '#38bdf8', '#ec4899', '#84cc16'];
-          for (let i = 0; i < 3; i++) {
-            const c = shardColors[i % shardColors.length];
-            context.spawnProjectile({
-              owner: this.owner,
-              x: this.owner.facing === 1 ? this.owner.x + this.owner.width + 24 : this.owner.x - 48,
-              y: this.owner.y + 8 + i * 20,
-              width: 26,
-              height: 20,
-              vx: this.owner.facing * (540 + i * 45),
-              vy: (i - 1) * 70,
-              lifetime: 0.65,
-              damage: 7,
-              knockbackX: 280,
-              knockbackY: -180,
-              color: c,
-              hitLabel: '色彩崩解!',
-              draw(ctx) {
-                ctx.save();
-                ctx.fillStyle = c;
-                ctx.strokeStyle = '#0f172a';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width / 2, this.y);
-                ctx.lineTo(this.x + this.width, this.y + this.height);
-                ctx.lineTo(this.x, this.y + this.height - 4);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                ctx.restore();
-              }
-            });
-          }
+          ? this.owner.x + this.owner.width - 8
+          : this.owner.x - reach + 8;
+        this.y = this.owner.y - 25;
+        if (!this.shaken && elapsed >= 0.75) {
+          this.shaken = true;
+          context.triggerShake(10, 0.24);
         }
       },
       onHit(target, ctx) {
-        if (!pounceDone && elapsed >= 0.52 && elapsed < 0.82) {
-          pounceDone = true;
-          target.takeDamage(10, this.owner.facing * 180, -140, this.owner, ctx, '画中具象!');
-        } else if (!burstDone && elapsed >= 0.82) {
-          burstDone = true;
-          target.statusEffects.invincible = 0;
-          target.statusEffects.superArmor = 0;
-          target.takeDamage(18, this.owner.facing * 430, -300, this.owner, ctx, '行为艺术!');
-        }
+        if (hitDone || elapsed < 0.75) return;
+        hitDone = target.takeDamage(26, this.owner.facing * 430, -300,
+          this.owner, ctx, '万象泼彩!');
+        if (hitDone) ctx.triggerHitstop(10);
       },
       draw() {}
     });

@@ -367,13 +367,13 @@ export const MBTI_16_DATA = [
     color: '#f59e0b',
     archetype: 'ranged',
     skillType: 'projectile',
-    basicQuote: '看我心情~',
+    basicQuote: '甩笔点刺!',
     stats: { hp: 95, speed: 340, jump: 660 },
     bio: '审美洁癖患者，打架输赢不重要，但出招姿势一定要足够好看。',
     moves: {
-      basic: { name: '颜料飞溅', desc: '发射绚丽的远程色彩弹。' },
-      skill: { name: '灵感爆发', desc: '投掷高饱和度艺术冲击波。' },
-      ultimate: { name: '行为艺术', desc: '挥笔绘出彩虹灵犬破画扑击，随后炸裂为漫天几何色块终结对手。' }
+      basic: { name: '甩笔点刺 / 泼墨横扫', desc: '近身轻击可衔接重击。' },
+      skill: { name: '颜料弹 / 彩绘突刺', desc: '发射颜料弹牵制对手，或向前突刺爆发。' },
+      ultimate: { name: '万象泼彩狂想曲', desc: '聚能后释放大范围泼彩攻击。' }
     }
   },
   {

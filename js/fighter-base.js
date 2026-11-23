@@ -32,9 +32,14 @@ export class FighterBase {
     this.basicCdMax = config.basicCdMax ?? 0.35;
     this.skillCd = 0;
     this.skillCdMax = config.skillCdMax ?? 3.5;
+    this.dashCd = 0;
+    this.dashCdMax = config.dashCdMax ?? 0.85;
 
     this.attackAnimTimer = 0;
     this.skillAnimTimer = 0;
+    this.dashTimer = 0;
+    this.dashDir = this.facing;
+    this.guarding = false;
     this.ultimateAnimTimer = 0;
     this.ultimateAnimDuration = 0;
     this.hitFlashTimer = 0;
@@ -87,8 +92,10 @@ export class FighterBase {
     // 1. 冷却与视觉计时器衰减
     this.basicCd = Math.max(0, this.basicCd - dt);
     this.skillCd = Math.max(0, this.skillCd - dt);
+    this.dashCd = Math.max(0, this.dashCd - dt);
     this.attackAnimTimer = Math.max(0, this.attackAnimTimer - dt);
     this.skillAnimTimer = Math.max(0, this.skillAnimTimer - dt);
+    this.dashTimer = Math.max(0, this.dashTimer - dt);
     this.ultimateAnimTimer = Math.max(0, this.ultimateAnimTimer - dt);
     this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
     this.shieldFlashTimer = Math.max(0, this.shieldFlashTimer - dt);
@@ -114,10 +121,32 @@ export class FighterBase {
 
     const inUltimate = this.ultimateAnimTimer > 0;
     const canAct = !inUltimate && this.statusEffects.exhausted <= 0 && this.hitstunTimer <= 0;
-    const canMove = canAct && this.statusEffects.rooted <= 0;
+
+    // 通用闪避（L / 3）
+    if (canAct && input.dash && this.dashTimer <= 0 && this.dashCd <= 0 && this.statusEffects.rooted <= 0) {
+      const dashInputDir = Number(Boolean(input.right)) - Number(Boolean(input.left));
+      this.dashDir = dashInputDir !== 0 ? dashInputDir : this.facing;
+      this.facing = this.dashDir;
+      this.dashCd = this.dashCdMax;
+      this.dashTimer = 0.22;
+      this.applyStatus('invincible', 0.16);
+      if (context.spawnParticles) {
+        context.spawnParticles(this.getCenterX(), this.getCenterY(), this.color, 6);
+      }
+    }
+
+    // 通用防御（S / ↓）
+    if (input.guard !== undefined) {
+      this.guarding = Boolean(canAct && this.onGround && input.guard && this.dashTimer <= 0);
+    }
+
+    const isDashing = this.dashTimer > 0;
+    const canMove = canAct && !isDashing && !this.guarding && this.statusEffects.rooted <= 0;
 
     // 2. 水平移动（带起步跟手性与受击击退保留）
-    if (canMove) {
+    if (isDashing && canAct) {
+      this.vx = this.dashDir * (this.speed * 2.1);
+    } else if (canMove) {
       let moveDir = 0;
       if (input.left) moveDir -= 1;
       if (input.right) moveDir += 1;
@@ -143,7 +172,7 @@ export class FighterBase {
     }
 
     // 3. 动作触发（普攻 / 特技 / 终极奥义）
-    if (canAct) {
+    if (canAct && !isDashing && !this.guarding) {
       if (input.attack && this.basicCd <= 0) {
         this.basicCd = this.basicCdMax;
         this.attackAnimTimer = 0.16;
@@ -246,6 +275,24 @@ export class FighterBase {
       const shieldText = this.id === 'infj' ? `共情吸收 +${absorbedEp}EP` : `护盾吸收 +${absorbedEp}EP`;
       context.spawnFloatingText(this.getCenterX(), this.y - 16, shieldText, '#10b981');
       return false;
+    }
+
+    if (this.guarding) {
+      const fromFront = !attacker || Math.sign(attacker.getCenterX() - this.getCenterX()) === this.facing || attacker.getCenterX() === this.getCenterX();
+      if (fromFront) {
+        const chipDamage = Math.max(1, Math.round(amount * 0.3));
+        this.hp = Math.max(0, this.hp - chipDamage);
+        this.shieldFlashTimer = 0.12;
+        this.vx = knockbackX * 0.25;
+        this.gainEp(Math.round(amount * 0.5));
+        context.triggerHitstop(2);
+        context.triggerShake(2, 0.06);
+        if (context.spawnParticles) {
+          context.spawnParticles(this.getCenterX() + this.facing * 16, this.getCenterY(), '#38bdf8', 6);
+        }
+        context.spawnFloatingText(this.getCenterX(), this.y - 16, `格挡 -${chipDamage}`, '#38bdf8');
+        return true;
+      }
     }
 
     this.hp = Math.max(0, this.hp - amount);
@@ -372,6 +419,18 @@ export class FighterBase {
 
       // 子类专属配件与表情
       this.drawCustom(ctx, halfW, halfH);
+    }
+
+    // 通用格挡护盾光弧（非 ENFJ 时显示）
+    if (this.guarding && this.id !== 'enfj') {
+      ctx.save();
+      ctx.strokeStyle = this.shieldFlashTimer > 0 ? '#fde047' : '#38bdf8';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(halfW * 0.55, 0, halfH * 0.85, -Math.PI * 0.42, Math.PI * 0.42);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // 球形低多边形共情防护罩（包裹整个人物且不遮挡脸部）
