@@ -31,7 +31,30 @@ export class SpriteAnimator {
       const rows = cfg.rows ?? 1;
       const totalFrames = cfg.frames ?? cols * rows;
       const srcFrameW = Math.floor(img.width / cols);
-      const srcFrameH = Math.floor(img.height / rows);
+      let srcFrameH = Math.floor(img.height / rows);
+      let sourceTop = 0;
+      if (cfg.autoCropVertical && rows === 1) {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const scan = canvas.getContext('2d');
+        scan.drawImage(img, 0, 0);
+        const pixels = scan.getImageData(0, 0, img.width, img.height).data;
+        let top = img.height;
+        let bottom = -1;
+        for (let y = 0; y < img.height; y += 2) {
+          for (let x = 0; x < img.width; x += 2) {
+            const p = (y * img.width + x) * 4;
+            if (pixels[p + 3] < 32 || Math.min(pixels[p], pixels[p + 1], pixels[p + 2]) >= 210) continue;
+            top = Math.min(top, y);
+            bottom = Math.max(bottom, y);
+          }
+        }
+        if (bottom >= top) {
+          sourceTop = Math.max(0, top - 12);
+          srcFrameH = Math.min(img.height, bottom + 2) - sourceTop;
+        }
+      }
       const inset = cfg.cropInset ?? 0;
       const cropW = Math.max(1, srcFrameW - inset * 2);
       const cropH = Math.max(1, srcFrameH - inset * 2);
@@ -51,7 +74,7 @@ export class SpriteAnimator {
         octx.drawImage(
           img,
           col * srcFrameW + inset,
-          row * srcFrameH + inset,
+          sourceTop + row * srcFrameH + inset,
           cropW,
           cropH,
           0,
@@ -61,7 +84,7 @@ export class SpriteAnimator {
         );
 
         if (cfg.removeWhiteBg !== false) {
-          this.removeBorderWhiteBg(octx, dstW, dstH);
+          this.removeBorderWhiteBg(octx, dstW, dstH, cfg.backgroundThreshold ?? 232);
         }
         entry.frames.push(cfg.trimToContent ? this.trimToContent(off, dstH) : off);
       }
@@ -103,7 +126,7 @@ export class SpriteAnimator {
   /**
    * 从画布四边泛洪移除纯白/近白背景，避免误伤角色内部的白色区域（如白胡须）
    */
-  removeBorderWhiteBg(ctx, w, h) {
+  removeBorderWhiteBg(ctx, w, h, threshold = 232) {
     const imgData = ctx.getImageData(0, 0, w, h);
     const data = imgData.data;
     const visited = new Uint8Array(w * h);
@@ -113,7 +136,7 @@ export class SpriteAnimator {
 
     const isNearWhite = (idx) => {
       const p = idx * 4;
-      return data[p] >= 232 && data[p + 1] >= 232 && data[p + 2] >= 232;
+      return data[p] >= threshold && data[p + 1] >= threshold && data[p + 2] >= threshold;
     };
 
     const enqueue = (x, y) => {

@@ -1,4 +1,4 @@
-import { GameEngine } from './engine.js';
+import { GameEngine } from './engine.js?v=20261123-ultimate-clip';
 import { FIGHTER_ROSTER, createFighter, getFighterMeta } from './fighters/index.js';
 import { sfx } from './sfx.js';
 import { createSelectStageFX } from './select-stage-fx.js';
@@ -71,7 +71,9 @@ let selectedP2 = 'infj';
 let activeSlot = 1; // 1 或 2
 let activeGroup = 'ALL';
 let hoveredId = null;
-let kbdCursorIdx = 0;
+const kbdCursorIdx = { 1: 0, 2: 4 };
+const keyboardPreviewId = { 1: null, 2: null };
+const lockedSlots = { 1: false, 2: false };
 let lastLockedId = null;
 
 let p1 = null;
@@ -326,17 +328,18 @@ function handleMenuShortcut(e) {
     const visible = getVisibleFighters();
     if (!visible.length) return;
 
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
-      kbdCursorIdx = (kbdCursorIdx + 1) % visible.length;
-      sfx.tick();
-      updateKeyboardFocusAndPreview();
-    } else if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
-      kbdCursorIdx = (kbdCursorIdx - 1 + visible.length) % visible.length;
-      sfx.tick();
-      updateKeyboardFocusAndPreview();
-    } else if (e.code === 'Enter') {
-      const target = visible[kbdCursorIdx];
-      if (target) lockFighter(target.id);
+    if (e.code === 'KeyD' || e.code === 'KeyA') {
+      moveSelectCursor(1, e.code === 'KeyD' ? 1 : -1);
+    } else if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
+      moveSelectCursor(2, e.code === 'ArrowRight' ? 1 : -1);
+    } else if (e.code === 'KeyJ') {
+      confirmSelectCursor(1);
+    } else if (e.code === 'Enter' && e.location !== 3) {
+      confirmSelectCursor(2);
+    } else if (e.code === 'KeyK') {
+      cancelSelectCursor(1);
+    } else if (e.code === 'Escape') {
+      cancelSelectCursor(2);
     } else if (e.code === 'Digit1') {
       setActiveSlot(1);
     } else if (e.code === 'Digit2') {
@@ -347,7 +350,7 @@ function handleMenuShortcut(e) {
     } else if (e.code === 'KeyR') {
       randomizeActiveSlot();
     } else if (e.code === 'Space') {
-      launchMatchWithVsSplash();
+      if (lockedSlots[1] && lockedSlots[2]) launchMatchWithVsSplash();
     }
   }
 }
@@ -562,8 +565,10 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
 }
 
 function updateSpotlights({ animateSlot = 0 } = {}) {
-  const p1Id = activeSlot === 1 && hoveredId ? hoveredId : selectedP1;
-  const p2Id = activeSlot === 2 && hoveredId ? hoveredId : selectedP2;
+  const p1Preview = activeSlot === 1 && hoveredId ? hoveredId : keyboardPreviewId[1];
+  const p2Preview = activeSlot === 2 && hoveredId ? hoveredId : keyboardPreviewId[2];
+  const p1Id = !lockedSlots[1] && p1Preview ? p1Preview : selectedP1;
+  const p2Id = !lockedSlots[2] && p2Preview ? p2Preview : selectedP2;
   const m1 = getFighterMeta(p1Id);
   const m2 = getFighterMeta(p2Id);
   selectScreen.style.setProperty('--p1-color', m1.color);
@@ -581,26 +586,64 @@ function updateSpotlights({ animateSlot = 0 } = {}) {
     selectStageFx.triggerLockBurst(animateSlot, animateSlot === 1 ? m1.color : m2.color);
   }
   renderSpotlight(p1Spotlight, 1, p1Id, {
-    isPreview: activeSlot === 1 && Boolean(hoveredId) && hoveredId !== selectedP1,
+    isPreview: !lockedSlots[1] && p1Id !== selectedP1,
     animatePop: animateSlot === 1
   });
   renderSpotlight(p2Spotlight, 2, p2Id, {
-    isPreview: activeSlot === 2 && Boolean(hoveredId) && hoveredId !== selectedP2,
+    isPreview: !lockedSlots[2] && p2Id !== selectedP2,
     animatePop: animateSlot === 2
+  });
+  slotP1Btn.textContent = lockedSlots[1] ? '1P ✓' : '1P';
+  slotP2Btn.textContent = lockedSlots[2] ? '2P ✓' : '2P';
+  startBtn.disabled = !(lockedSlots[1] && lockedSlots[2]);
+}
+
+function updateKeyboardFocus() {
+  const cards = rosterGrid.querySelectorAll('.poster-card');
+  const p1Id = lockedSlots[1] ? selectedP1 : (keyboardPreviewId[1] || selectedP1);
+  const p2Id = lockedSlots[2] ? selectedP2 : (keyboardPreviewId[2] || selectedP2);
+  cards.forEach((card, idx) => {
+    const isP1 = card.dataset.id === p1Id;
+    const isP2 = card.dataset.id === p2Id;
+    card.classList.toggle('kbd-focus', idx === kbdCursorIdx[activeSlot] && !lockedSlots[activeSlot]);
+    card.classList.toggle('kbd-focus-p1', idx === kbdCursorIdx[1] && !lockedSlots[1]);
+    card.classList.toggle('kbd-focus-p2', idx === kbdCursorIdx[2] && !lockedSlots[2]);
+    card.classList.toggle('pick-p1', isP1);
+    card.classList.toggle('pick-p2', isP2);
+    const tags = card.querySelector('.poster-tags');
+    if (tags) {
+      tags.innerHTML = `${isP1 ? '<span class="poster-tag p1">1P</span>' : ''}`
+        + `${isP2 ? '<span class="poster-tag p2">2P</span>' : ''}`;
+    }
   });
 }
 
-function updateKeyboardFocusAndPreview() {
+function moveSelectCursor(slot, step) {
+  if (lockedSlots[slot]) return;
   const visible = getVisibleFighters();
-  const cards = rosterGrid.querySelectorAll('.poster-card');
-  cards.forEach((card, idx) => {
-    card.classList.toggle('kbd-focus', idx === kbdCursorIdx);
-  });
-  const focused = visible[kbdCursorIdx];
-  if (focused) {
-    hoveredId = focused.id;
-    updateSpotlights();
-  }
+  if (!visible.length) return;
+  kbdCursorIdx[slot] = (kbdCursorIdx[slot] + step + visible.length) % visible.length;
+  keyboardPreviewId[slot] = visible[kbdCursorIdx[slot]].id;
+  setActiveSlot(slot);
+  sfx.tick();
+  updateKeyboardFocus();
+  updateSpotlights();
+}
+
+function confirmSelectCursor(slot) {
+  if (lockedSlots[slot]) return;
+  const target = getVisibleFighters()[kbdCursorIdx[slot]];
+  if (target) lockFighter(target.id, slot);
+}
+
+function cancelSelectCursor(slot) {
+  if (!lockedSlots[slot]) return;
+  lockedSlots[slot] = false;
+  keyboardPreviewId[slot] = slot === 1 ? selectedP1 : selectedP2;
+  setActiveSlot(slot);
+  sfx.tick();
+  updateKeyboardFocus();
+  updateSpotlights();
 }
 
 function renderSelectScreen({ animateSlot = 0 } = {}) {
@@ -609,7 +652,9 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
 
   rosterGrid.innerHTML = '';
   const visibleFighters = getVisibleFighters();
-  if (kbdCursorIdx >= visibleFighters.length) kbdCursorIdx = 0;
+  for (const slot of [1, 2]) {
+    if (kbdCursorIdx[slot] >= visibleFighters.length) kbdCursorIdx[slot] = 0;
+  }
 
   const groupsToShow = FACTION_GROUPS.filter(
     (g) => activeGroup === 'ALL' || g.id === activeGroup
@@ -669,24 +714,30 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
     rosterGrid.appendChild(section);
   });
   lastLockedId = null;
+  updateKeyboardFocus();
 }
 
-function lockFighter(id) {
-  if (activeSlot === 1) {
+function lockFighter(id, slot = activeSlot) {
+  if (slot === 1) {
     selectedP1 = id;
   } else {
     selectedP2 = id;
   }
+  lockedSlots[slot] = true;
+  keyboardPreviewId[slot] = null;
+  const index = getVisibleFighters().findIndex((fighter) => fighter.id === id);
+  if (index >= 0) kbdCursorIdx[slot] = index;
+  setActiveSlot(slot);
   lastLockedId = id;
   hoveredId = null;
   sfx.confirm();
-  renderSelectScreen({ animateSlot: activeSlot });
+  renderSelectScreen({ animateSlot: slot });
 }
 
 rosterGrid.addEventListener('click', (e) => {
   const card = e.target.closest('.poster-card');
   if (!card) return;
-  kbdCursorIdx = Number(card.dataset.index || 0);
+  kbdCursorIdx[activeSlot] = Number(card.dataset.index || 0);
   lockFighter(card.dataset.id);
 });
 
@@ -719,6 +770,7 @@ function setActiveSlot(slot) {
   hoveredId = null;
   slotP1Btn.classList.toggle('active', slot === 1);
   slotP2Btn.classList.toggle('active', slot === 2);
+  updateKeyboardFocus();
   updateSpotlights();
 }
 
@@ -728,6 +780,9 @@ function randomizeActiveSlot() {
   if (!pick) return;
   if (activeSlot === 1) selectedP1 = pick.id;
   else selectedP2 = pick.id;
+  lockedSlots[activeSlot] = true;
+  keyboardPreviewId[activeSlot] = null;
+  kbdCursorIdx[activeSlot] = visible.indexOf(pick);
   lastLockedId = pick.id;
   hoveredId = null;
   sfx.random();
@@ -743,6 +798,12 @@ function randomizeBothSlots() {
   }
   selectedP1 = p1Pick.id;
   selectedP2 = p2Pick.id;
+  lockedSlots[1] = true;
+  lockedSlots[2] = true;
+  keyboardPreviewId[1] = null;
+  keyboardPreviewId[2] = null;
+  kbdCursorIdx[1] = pool.indexOf(p1Pick);
+  kbdCursorIdx[2] = pool.indexOf(p2Pick);
   hoveredId = null;
   sfx.random();
   renderSelectScreen({ animateSlot: 1 });
@@ -752,6 +813,9 @@ function swapSlots() {
   const tmp = selectedP1;
   selectedP1 = selectedP2;
   selectedP2 = tmp;
+  [lockedSlots[1], lockedSlots[2]] = [lockedSlots[2], lockedSlots[1]];
+  [keyboardPreviewId[1], keyboardPreviewId[2]] = [keyboardPreviewId[2], keyboardPreviewId[1]];
+  [kbdCursorIdx[1], kbdCursorIdx[2]] = [kbdCursorIdx[2], kbdCursorIdx[1]];
   hoveredId = null;
   sfx.swap();
   renderSelectScreen({ animateSlot: activeSlot });
@@ -771,7 +835,10 @@ groupFilter?.addEventListener('click', (e) => {
     b.classList.toggle('active', b === btn);
   }
   hoveredId = null;
-  kbdCursorIdx = 0;
+  kbdCursorIdx[1] = 0;
+  kbdCursorIdx[2] = Math.min(1, getVisibleFighters().length - 1);
+  keyboardPreviewId[1] = null;
+  keyboardPreviewId[2] = null;
   sfx.tick();
   renderSelectScreen();
 });
@@ -1001,10 +1068,10 @@ function advanceFinisher(dt) {
     }
   } else if (state.phase === 'animation') {
     state.elapsed += dt;
-    if (state.specialFinish) state.winner.showFrame?.('finish', Math.min(23, Math.floor(state.elapsed * 15)));
-    state.loser.showFrame?.('ko', Math.min(47, Math.floor(state.elapsed * 30)));
-    if (state.elapsed >= 24 / 15) {
-      if (state.specialFinish) state.winner.showFrame?.('finish', 23);
+    if (state.specialFinish) state.winner.showFrame?.('finish', Math.min(3, Math.floor(state.elapsed * 6)));
+    state.loser.showFrame?.('ko', Math.min(7, Math.floor(state.elapsed * 12)));
+    if (state.elapsed >= 10 / 15) {
+      if (state.specialFinish) state.winner.showFrame?.('finish', 3);
       state.phase = 'hold';
       state.elapsed = 0;
     }

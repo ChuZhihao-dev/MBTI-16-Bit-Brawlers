@@ -1086,6 +1086,12 @@ kbd {
   outline: none;
 }
 
+.poster-card.kbd-focus-p1::after { border-bottom: 5px solid var(--p1); }
+.poster-card.kbd-focus-p2::after { border-bottom: 5px solid var(--p2); }
+.poster-card.kbd-focus-p1.kbd-focus-p2::after {
+  border-image: linear-gradient(to right, var(--p1) 50%, var(--p2) 50%) 1;
+}
+
 @media (max-width: 1100px) {
   .spotlight-card.p1 {
     grid-template-columns: 140px 1fr;
@@ -1131,7 +1137,7 @@ kbd {
 .poster-tags {
   position: absolute;
   top: 6px;
-  left: 12px;
+  right: 6px;
   display: flex;
   gap: 4px;
 }
@@ -1156,6 +1162,21 @@ kbd {
   flex-wrap: wrap;
   gap: 14px;
   padding-top: 4px;
+}
+
+.select-key-hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.select-actions .smash-start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .select-actions .arcade-btn {

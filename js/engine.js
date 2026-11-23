@@ -661,6 +661,10 @@ export class GameEngine {
       ctx.fill();
       ctx.stroke();
 
+      ctx.beginPath();
+      ctx.arc(0, 4, 155, 0, Math.PI * 2);
+      ctx.clip();
+
       ctx.scale(fighter.facing, 1);
       const drawH = 292;
       const drawW = (ultFrame.width / ultFrame.height) * drawH;
