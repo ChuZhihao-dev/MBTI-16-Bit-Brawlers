@@ -83,6 +83,25 @@ export function createSelectStageFX(canvas, bgImage) {
     motes.push(spawnMote(true));
   }
 
+  const stageHost = canvas.closest('#select-screen');
+
+  // 原画 select_bg.jpg 中左右聚光灯石台中心的归一化坐标 (u, v)
+  const SPOT_U1 = 0.278;
+  const SPOT_U2 = 0.722;
+  const SPOT_V = 0.735;
+
+  function computeCoverLayout(cssW, cssH) {
+    const natW = bgImage?.naturalWidth || 1408;
+    const natH = bgImage?.naturalHeight || 768;
+    const scale = Math.max(cssW / natW, cssH / natH) * 1.035;
+    const drawW = natW * scale;
+    const drawH = natH * scale;
+    const offsetX = (cssW - drawW) / 2;
+    // 与 CSS object-position: center 82% 对齐，让石台略微上移，完整露出角色全身不被底部选人栏遮挡
+    const offsetY = (cssH - drawH) * 0.82;
+    return { offsetX, offsetY, drawW, drawH };
+  }
+
   function resizeIfNeeded() {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -94,7 +113,7 @@ export function createSelectStageFX(canvas, bgImage) {
       canvas.width = width;
       canvas.height = height;
     }
-    return dpr;
+    return { dpr, cssW: rect.width, cssH: rect.height };
   }
 
   function drawSpotlightBeam(topL, topR, botL, botR, baseY, rgb, breath) {
@@ -202,8 +221,8 @@ export function createSelectStageFX(canvas, bgImage) {
     },
 
     updateAndDraw(dt) {
-      const dpr = resizeIfNeeded();
-      if (!width || !height) return;
+      const { dpr, cssW, cssH } = resizeIfNeeded();
+      if (!width || !height || !cssW || !cssH) return;
 
       time += dt;
       const colorStep = Math.min(1, dt * 6);
@@ -214,50 +233,43 @@ export function createSelectStageFX(canvas, bgImage) {
       pointer.x = lerp(pointer.x, pointer.tx, pStep);
       pointer.y = lerp(pointer.y, pointer.ty, pStep);
 
+      const shiftX = -pointer.x * 7;
+      const shiftY = -pointer.y * 5;
       if (bgImage) {
-        const shiftX = -pointer.x * 7;
-        const shiftY = -pointer.y * 5;
         bgImage.style.transform = `scale(1.035) translate3d(${shiftX.toFixed(1)}px, ${shiftY.toFixed(1)}px, 0)`;
+      }
+
+      // 精确按 object-fit: cover 投影计算左右聚光灯石台在当前屏幕下的像素坐标
+      const layout = computeCoverLayout(cssW, cssH);
+      const p1CssX = layout.offsetX + layout.drawW * SPOT_U1 + shiftX;
+      const p2CssX = layout.offsetX + layout.drawW * SPOT_U2 + shiftX;
+      const spotCssY = layout.offsetY + layout.drawH * SPOT_V + shiftY;
+      const charSize = Math.max(150, Math.min(310, layout.drawH * 0.34));
+
+      if (stageHost) {
+        stageHost.style.setProperty('--p1-spot-x', `${p1CssX.toFixed(1)}px`);
+        stageHost.style.setProperty('--p2-spot-x', `${p2CssX.toFixed(1)}px`);
+        stageHost.style.setProperty('--spot-y', `${spotCssY.toFixed(1)}px`);
+        stageHost.style.setProperty('--spot-char-size', `${charSize.toFixed(1)}px`);
       }
 
       ctx.clearRect(0, 0, width, height);
 
-      const parallaxX = pointer.x * 10 * dpr;
-      const parallaxY = pointer.y * 6 * dpr;
-      const baseY = height * 0.745 + parallaxY;
+      const p1X = p1CssX * dpr;
+      const p2X = p2CssX * dpr;
+      const baseY = spotCssY * dpr;
+      const parallaxX = shiftX * dpr;
+      const parallaxY = shiftY * dpr;
       const breath1 = 0.88 + Math.sin(time * 1.4) * 0.12;
       const breath2 = 0.88 + Math.sin(time * 1.4 + 1.6) * 0.12;
 
-      // 1. 柔和体积光束（与原画左右聚光灯重合）
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      drawSpotlightBeam(
-        width * 0.145 + parallaxX * 0.6,
-        width * 0.255 + parallaxX * 0.6,
-        width * 0.165 + parallaxX,
-        width * 0.39 + parallaxX,
-        baseY,
-        p1Color,
-        breath1
-      );
-      drawSpotlightBeam(
-        width * 0.745 + parallaxX * 0.6,
-        width * 0.855 + parallaxX * 0.6,
-        width * 0.61 + parallaxX,
-        width * 0.835 + parallaxX,
-        baseY,
-        p2Color,
-        breath2
-      );
-      ctx.restore();
+      // 1. 石台底座同心共振环（按 cover 投影动态锁定在原画聚光灯椭圆中心）
+      const rx = layout.drawW * 0.108 * dpr;
+      const ry = layout.drawH * 0.036 * dpr;
+      drawPedestalRings(p1X, baseY, rx, ry, p1Color, breath1, dpr);
+      drawPedestalRings(p2X, baseY, rx, ry, p2Color, breath2, dpr);
 
-      // 2. 石台底座同心共振环
-      const rx = width * 0.112;
-      const ry = height * 0.036;
-      drawPedestalRings(width * 0.278 + parallaxX, baseY, rx, ry, p1Color, breath1, dpr);
-      drawPedestalRings(width * 0.722 + parallaxX, baseY, rx, ry, p2Color, breath2, dpr);
-
-      // 3. 锁定瞬间的石台扩散涟漪
+      // 2. 锁定瞬间的石台扩散涟漪
       for (let i = ripples.length - 1; i >= 0; i -= 1) {
         const r = ripples[i];
         r.progress += dt / r.duration;
@@ -267,13 +279,15 @@ export function createSelectStageFX(canvas, bgImage) {
         }
         const ease = 1 - Math.pow(1 - r.progress, 3);
         const alpha = (1 - r.progress) * 0.65;
+        const rCx = (layout.offsetX + layout.drawW * r.cxNorm + shiftX) * dpr;
+        const rCy = (layout.offsetY + layout.drawH * r.cyNorm + shiftY) * dpr;
         ctx.save();
         ctx.strokeStyle = rgba(r.rgb, alpha);
         ctx.lineWidth = (2.5 - ease * 1.5) * dpr;
         ctx.beginPath();
         ctx.ellipse(
-          width * r.cxNorm + parallaxX,
-          height * r.cyNorm + parallaxY,
+          rCx,
+          rCy,
           rx * (0.8 + ease * 0.9),
           ry * (0.8 + ease * 1.1),
           0,

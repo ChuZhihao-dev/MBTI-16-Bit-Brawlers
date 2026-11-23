@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Type Fighter // 十六型人格大乱斗</title>
-  <link rel="stylesheet" href="css/main.css?v=20261122-1" />
+  <link rel="stylesheet" href="css/main.css?v=20261123-7" />
 </head>
 <body>
   <div id="app">
@@ -70,21 +70,9 @@
 
       <div class="select-toolbar">
         <div class="slot-switcher">
-          <span class="toolbar-label">当前选人：</span>
-          <button id="slot-p1-btn" class="slot-btn p1 active" data-slot="1" type="button">1P 选手</button>
-          <button id="slot-p2-btn" class="slot-btn p2" data-slot="2" type="button">2P 选手</button>
-          <span class="toolbar-divider"></span>
-          <button id="random-pick-btn" class="tool-btn" type="button" title="随机为当前选手选人 (R)">🎲 随机</button>
-          <button id="random-both-btn" class="tool-btn" type="button" title="双方全随机">⚡ 全随机</button>
-          <button id="swap-pick-btn" class="tool-btn" type="button" title="互换 1P / 2P">⇄ 互换</button>
-        </div>
-
-        <div id="group-filter" class="group-filter">
-          <button class="filter-btn active" data-group="ALL" type="button">全部 (16)</button>
-          <button class="filter-btn nt" data-group="NT" type="button">NT 紫</button>
-          <button class="filter-btn nf" data-group="NF" type="button">NF 绿</button>
-          <button class="filter-btn sj" data-group="SJ" type="button">SJ 蓝</button>
-          <button class="filter-btn sp" data-group="SP" type="button">SP 黄</button>
+          <button id="slot-p1-btn" class="slot-btn p1 active" data-slot="1" type="button">1P</button>
+          <button id="slot-p2-btn" class="slot-btn p2" data-slot="2" type="button">2P</button>
+          <button id="random-pick-btn" class="tool-btn" type="button" title="随机选人 (R)">🎲 随机</button>
         </div>
       </div>
 
@@ -102,18 +90,7 @@
 
       <div class="select-actions">
         <button id="back-cover-btn" class="arcade-btn" type="button">返回封面</button>
-        <div class="ready-banner">
-          <span class="ready-dot"></span>
-          <span>READY TO FIGHT!</span>
-        </div>
-        <button id="start-btn" class="arcade-btn primary smash-start-btn" type="button">START FIGHT · 开始对决</button>
-      </div>
-      <div class="select-kbd-hint">
-        <span><kbd>←</kbd><kbd>→</kbd> 移动光标</span>
-        <span><kbd>Enter</kbd> 锁定角色</span>
-        <span><kbd>1</kbd>/<kbd>2</kbd> 切换 1P/2P</span>
-        <span><kbd>R</kbd> 随机</span>
-        <span><kbd>Space</kbd> 开战</span>
+        <button id="start-btn" class="arcade-btn primary smash-start-btn" type="button">开始对决</button>
       </div>
     </section>
 
@@ -224,6 +201,7 @@
     </section>
   </div>
 
-  <script type="module" src="js/main.js?v=20261122-4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_svg.min.js"></script>
+  <script type="module" src="js/main.js?v=20261123-6"></script>
 </body>
 </html>

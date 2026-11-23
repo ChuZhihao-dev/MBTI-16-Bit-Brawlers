@@ -19,7 +19,7 @@ export const FIGHTER_ROSTER = MBTI_16_DATA.map((meta) => {
   const CustomClass = CUSTOM_CLASSES[meta.id];
   return {
     ...meta,
-    posterPath: `assets/fighters/${meta.id}/concept/portrait.png`,
+    posterPath: `assets/fighters/${meta.id}/concept/portrait.png?v=20261123`,
     FighterClass: CustomClass || class extends GenericMBTIFighter {
       constructor(config) {
         super(config, meta);

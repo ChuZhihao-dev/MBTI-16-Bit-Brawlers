@@ -452,8 +452,7 @@ function buildFallbackPosterUrl(fighter) {
 
 function createPosterImgHtml(fighter) {
   const fallback = buildFallbackPosterUrl(fighter);
-  const src = fighter.id === 'infj' ? fallback : fighter.posterPath;
-  return `<img src="${src}" alt="${fighter.name} 海报" onerror="this.onerror=null;this.src='${fallback}';" />`;
+  return `<img src="${fighter.posterPath}" alt="${fighter.name} 海报" onerror="this.onerror=null;this.src='${fallback}';" />`;
 }
 
 function setImgWithFallback(imgEl, fighter) {
@@ -462,7 +461,7 @@ function setImgWithFallback(imgEl, fighter) {
     imgEl.onerror = null;
     imgEl.src = fallback;
   };
-  imgEl.src = fighter.id === 'infj' ? fallback : fighter.posterPath;
+  imgEl.src = fighter.posterPath;
   imgEl.alt = fighter.name;
 }
 
@@ -476,6 +475,51 @@ const FACTION_GROUPS = [
   { id: 'SJ', name: 'SJ 守护者', cls: 'sj', color: '#3b82f6' },
   { id: 'SP', name: 'SP 探险家', cls: 'sp', color: '#d97706' }
 ];
+
+const lottieDataCache = new Map();
+const spotlightLottieInstances = { 1: null, 2: null };
+const spotlightRenderToken = { 1: 0, 2: 0 };
+
+async function loadFighterLottieData(fighterId) {
+  if (lottieDataCache.has(fighterId)) return lottieDataCache.get(fighterId);
+  try {
+    const res = await fetch(`assets/fighters/${fighterId}/concept/avatar.json`);
+    if (!res.ok) {
+      lottieDataCache.set(fighterId, null);
+      return null;
+    }
+    const data = await res.json();
+    lottieDataCache.set(fighterId, data);
+    return data;
+  } catch {
+    lottieDataCache.set(fighterId, null);
+    return null;
+  }
+}
+
+async function mountSpotlightLottie(posterEl, playerIndex, fighterId) {
+  if (!posterEl) return;
+  const token = ++spotlightRenderToken[playerIndex];
+  if (spotlightLottieInstances[playerIndex]) {
+    spotlightLottieInstances[playerIndex].destroy();
+    spotlightLottieInstances[playerIndex] = null;
+  }
+  const data = await loadFighterLottieData(fighterId);
+  if (!data || token !== spotlightRenderToken[playerIndex]) return;
+  if (typeof window.lottie?.loadAnimation !== 'function') return;
+  const host = posterEl.querySelector('.spotlight-lottie');
+  if (!host) return;
+  host.innerHTML = '';
+  const anim = window.lottie.loadAnimation({
+    container: host,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    animationData: structuredClone(data)
+  });
+  spotlightLottieInstances[playerIndex] = anim;
+  posterEl.classList.add('has-lottie');
+}
 
 function renderSpotlight(container, playerIndex, fighterId, { isPreview = false, animatePop = false } = {}) {
   const f = getFighterMeta(fighterId);
@@ -506,6 +550,7 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
   const posterHtml = `
     <div class="spotlight-poster ${animatePop ? 'pop' : ''}" style="--fighter-color:${f.color}">
       ${createPosterImgHtml(f)}
+      <div class="spotlight-lottie" aria-hidden="true"></div>
       <span class="spotlight-slot-ribbon ${cls}">${tag}${isPreview ? ' 预览' : ' 已选'}</span>
     </div>
   `;
@@ -517,7 +562,6 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
         <span class="spotlight-faction ${faction.cls}">${faction.name}</span>
       </div>
       <div class="spotlight-subtitle">${f.title}</div>
-      <p class="spotlight-bio">${f.bio}</p>
       <div class="spotlight-stat-bars">
         <div class="stat-bar-item">
           <div class="stat-bar-head"><span>HP</span><span>${f.stats.hp}</span></div>
@@ -532,13 +576,11 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
           <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${jmpPct}%;background:${f.color}"></div></div>
         </div>
       </div>
-      <ul class="spotlight-moves">
-        ${movesHtml}
-      </ul>
     </div>
   `;
 
-  container.innerHTML = playerIndex === 1 ? `${posterHtml}${infoHtml}` : `${infoHtml}${posterHtml}`;
+  container.innerHTML = playerIndex === 1 ? `${infoHtml}${posterHtml}` : `${posterHtml}${infoHtml}`;
+  mountSpotlightLottie(container.querySelector('.spotlight-poster'), playerIndex, fighterId);
 }
 
 function updateSpotlights({ animateSlot = 0 } = {}) {
@@ -606,11 +648,7 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
 
     const header = document.createElement('div');
     header.className = 'faction-group-header';
-    header.innerHTML = `
-      <span class="faction-dot" style="background:${group.color}"></span>
-      <strong>${group.name}</strong>
-      <span class="faction-count">${members.length} 人</span>
-    `;
+    header.innerHTML = `<strong>${group.name}</strong>`;
     section.appendChild(header);
 
     const cardsWrap = document.createElement('div');
@@ -743,11 +781,11 @@ function swapSlots() {
 
 slotP1Btn.addEventListener('click', () => setActiveSlot(1));
 slotP2Btn.addEventListener('click', () => setActiveSlot(2));
-randomPickBtn.addEventListener('click', randomizeActiveSlot);
-randomBothBtn.addEventListener('click', randomizeBothSlots);
-swapPickBtn.addEventListener('click', swapSlots);
+randomPickBtn?.addEventListener('click', randomizeActiveSlot);
+randomBothBtn?.addEventListener('click', randomizeBothSlots);
+swapPickBtn?.addEventListener('click', swapSlots);
 
-groupFilter.addEventListener('click', (e) => {
+groupFilter?.addEventListener('click', (e) => {
   const btn = e.target.closest('.filter-btn');
   if (!btn) return;
   activeGroup = btn.dataset.group;
@@ -762,8 +800,10 @@ groupFilter.addEventListener('click', (e) => {
 
 function enterSelectScreen(group = 'ALL') {
   activeGroup = group;
-  for (const b of groupFilter.querySelectorAll('.filter-btn')) {
-    b.classList.toggle('active', b.dataset.group === group);
+  if (groupFilter) {
+    for (const b of groupFilter.querySelectorAll('.filter-btn')) {
+      b.classList.toggle('active', b.dataset.group === group);
+    }
   }
   gameState = 'SELECT';
   sfx.confirm();
