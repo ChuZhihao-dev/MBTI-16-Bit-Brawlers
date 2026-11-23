@@ -44,34 +44,15 @@
     <!-- 1. 封面标题界面 -->
     <section id="cover-screen" class="screen active">
       <div class="cover-hero">
-        <div class="cover-bg-grid" aria-hidden="true"></div>
-        <div class="cover-badge">★ 16-BIT PERSONALITY SMASH ARCADE ★</div>
-        <h2 class="cover-title">
-          <span class="cover-title-main">十六型人格大乱斗</span>
-          <span class="cover-title-sub">SUPER MBTI BRAWLERS</span>
-        </h2>
-        <p class="cover-tagline">
-          刻板印象具象化 · 明星大乱斗式选人 · 双人同屏快节奏格斗
-        </p>
-
-        <div class="cover-marquee-wrap" aria-hidden="true">
-          <div id="cover-marquee" class="cover-marquee"></div>
-        </div>
-
-        <div class="cover-factions">
-          <button class="faction-pill nt" data-group="NT" type="button"><strong>NT 分析家</strong><span>INTJ · INTP · ENTJ · ENTP</span></button>
-          <button class="faction-pill nf" data-group="NF" type="button"><strong>NF 外交家</strong><span>INFJ · INFP · ENFJ · ENFP</span></button>
-          <button class="faction-pill sj" data-group="SJ" type="button"><strong>SJ 守护者</strong><span>ISTJ · ISFJ · ESTJ · ESFJ</span></button>
-          <button class="faction-pill sp" data-group="SP" type="button"><strong>SP 探险家</strong><span>ISTP · ISFP · ESTP · ESFP</span></button>
-        </div>
-
-        <div class="cover-actions">
-          <button id="enter-select-btn" class="arcade-btn primary pulse-btn">PRESS START · 进入选人</button>
-          <div class="cover-key-hint">按 <kbd>Enter</kbd> 或 <kbd>Space</kbd> 快速开始 · 点击阵营卡片直达筛选</div>
-        </div>
-
-        <div class="cover-footer">
-          <span>本地双人对战 · 顿帧打击感 · 街机合成音效 · 16型全员集结</span>
+        <img class="cover-bg-image" src="assets/fighters/mbti-brawl.jpeg" alt="十六型人格大乱斗全员合照" />
+        <div class="cover-content">
+          <div id="cover-mode-note" class="cover-mode-note hidden" hidden></div>
+          <div class="cover-menu">
+            <button id="enter-select-btn" class="cover-menu-btn is-primary" type="button">开始游戏</button>
+            <button id="single-player-btn" class="cover-menu-btn" type="button">单人模式</button>
+            <button id="two-player-btn" class="cover-menu-btn" type="button">双人模式</button>
+            <button id="cover-settings-btn" class="cover-menu-btn" type="button">游戏设置</button>
+          </div>
         </div>
       </div>
     </section>

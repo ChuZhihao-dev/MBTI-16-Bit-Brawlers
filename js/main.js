@@ -15,8 +15,11 @@ const resetBindingsBtn = document.getElementById('reset-bindings-btn');
 const keybindingsGrid = document.getElementById('keybindings-grid');
 const keybindingsStatus = document.getElementById('keybindings-status');
 const gameOverBanner = document.getElementById('game-over-banner');
-const coverMarquee = document.getElementById('cover-marquee');
 const enterSelectBtn = document.getElementById('enter-select-btn');
+const singlePlayerBtn = document.getElementById('single-player-btn');
+const twoPlayerBtn = document.getElementById('two-player-btn');
+const coverSettingsBtn = document.getElementById('cover-settings-btn');
+const coverModeNote = document.getElementById('cover-mode-note');
 const backCoverBtn = document.getElementById('back-cover-btn');
 const startBtn = document.getElementById('start-btn');
 
@@ -237,10 +240,12 @@ const BLOCKED_KEYS = new Set([
   'Space'
 ]);
 
+const GROUP_ORDER = { NT: 0, NF: 1, SJ: 2, SP: 3 };
+
 function getVisibleFighters() {
-  return FIGHTER_ROSTER.filter(
-    (f) => activeGroup === 'ALL' || f.group === activeGroup
-  );
+  return FIGHTER_ROSTER
+    .filter((f) => activeGroup === 'ALL' || f.group === activeGroup)
+    .sort((a, b) => (GROUP_ORDER[a.group] ?? 9) - (GROUP_ORDER[b.group] ?? 9));
 }
 
 window.addEventListener('keydown', (e) => {
@@ -450,28 +455,33 @@ function setImgWithFallback(imgEl, fighter) {
 }
 
 function renderCoverMarquee() {
-  const chips = [...FIGHTER_ROSTER, ...FIGHTER_ROSTER]
-    .map(
-      (f) => `
-      <div class="marquee-chip">
-        ${createPosterImgHtml(f)}
-        <strong style="color:${f.color}">${f.name}</strong>
-      </div>`
-    )
-    .join('');
-  coverMarquee.innerHTML = chips;
+  // Cover now displays the full-screen mbti-brawl.jpeg artwork.
 }
+
+const FACTION_GROUPS = [
+  { id: 'NT', name: 'NT 分析家', cls: 'nt', color: '#7c3aed' },
+  { id: 'NF', name: 'NF 外交家', cls: 'nf', color: '#10b981' },
+  { id: 'SJ', name: 'SJ 守护者', cls: 'sj', color: '#3b82f6' },
+  { id: 'SP', name: 'SP 探险家', cls: 'sp', color: '#d97706' }
+];
 
 function renderSpotlight(container, playerIndex, fighterId, { isPreview = false, animatePop = false } = {}) {
   const f = getFighterMeta(fighterId);
+  const faction = FACTION_GROUPS.find((g) => g.id === f.group) || FACTION_GROUPS[0];
+  const fmt = (action) => formatKeyCode(keyBindings[playerIndex][action], true);
   const movesHtml = fighterId === 'isfp'
-    ? `<li><strong>[${playerIndex === 1 ? 'J/K' : '4/5'}] 甩笔点刺 / 泼墨横扫：</strong>轻击可接重击。</li>
-       <li><strong>[${playerIndex === 1 ? 'L' : '6'}] 闪避：</strong>朝移动方向或当前朝向滑步，初段短暂无敌。</li>
-       <li><strong>[${playerIndex === 1 ? 'U/I' : '7/8'}] 颜料弹 / 彩绘突刺：</strong>中距离牵制或突进爆发。</li>
-       <li><strong>[${playerIndex === 1 ? 'O' : '9'}] 万象泼彩狂想曲：</strong>聚能后释放大范围泼彩。</li>`
-    : `<li><strong>[普攻] ${f.moves.basic.name}：</strong>${f.moves.basic.desc}</li>
-        <li><strong>[特技] ${f.moves.skill.name}：</strong>${f.moves.skill.desc}</li>
-        <li><strong>[奥义] ${f.moves.ultimate.name}：</strong>${f.moves.ultimate.desc}</li>`;
+    ? `<li><strong>[${fmt('lightAttack')}/${fmt('heavyAttack')}] 甩笔点刺 / 泼墨横扫：</strong>轻击可接重击。</li>
+       <li><strong>[${fmt('dash')}] 闪避：</strong>朝移动方向或当前朝向滑步，初段短暂无敌。</li>
+       <li><strong>[${fmt('skill1')}/${fmt('skill2')}] 颜料弹 / 彩绘突刺：</strong>中距离牵制或突进爆发。</li>
+       <li><strong>[${fmt('ultimate')}] 万象泼彩狂想曲：</strong>聚能后释放大范围泼彩。</li>`
+    : fighterId === 'enfj'
+      ? `<li><strong>[${fmt('lightAttack')}/${fmt('heavyAttack')}] 耀光连斩 / 破阵重击：</strong>多段变化轻重攻击。</li>
+         <li><strong>[${fmt('dash')}/${fmt('guard')}] 冲刺 / 格挡：</strong>快速突进无敌帧与正面格挡。</li>
+         <li><strong>[${fmt('skill1')}/${fmt('skill2')}] 三连剑气 / 气焰共鸣：</strong>远程剑气与气焰强化。</li>
+         <li><strong>[${fmt('ultimate')}] 耀光破阵斩：</strong>爆发全屏耀光斩击。</li>`
+      : `<li><strong>[${fmt('lightAttack')} 普攻] ${f.moves.basic.name}：</strong>${f.moves.basic.desc}</li>
+         <li><strong>[${fmt('heavyAttack')}/${fmt('skill1')}/${fmt('skill2')} 特技] ${f.moves.skill.name}：</strong>${f.moves.skill.desc}</li>
+         <li><strong>[${fmt('ultimate')} 奥义] ${f.moves.ultimate.name}：</strong>${f.moves.ultimate.desc}</li>`;
   const tag = playerIndex === 1 ? '1P' : '2P';
   const cls = playerIndex === 1 ? 'p1' : 'p2';
   container.classList.toggle('active-slot', activeSlot === playerIndex);
@@ -481,17 +491,20 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
   const spdPct = Math.min(100, Math.round((f.stats.speed / 360) * 100));
   const jmpPct = Math.min(100, Math.round((f.stats.jump / 700) * 100));
 
-  container.innerHTML = `
-    <div class="spotlight-poster ${animatePop ? 'pop' : ''}">
+  const posterHtml = `
+    <div class="spotlight-poster ${animatePop ? 'pop' : ''}" style="--fighter-color:${f.color}">
       ${createPosterImgHtml(f)}
-      ${isPreview ? '<span class="preview-pill">PREVIEW</span>' : ''}
+      <span class="spotlight-slot-ribbon ${cls}">${tag}${isPreview ? ' 预览' : ' 已选'}</span>
     </div>
+  `;
+  const infoHtml = `
     <div class="spotlight-info">
       <div class="spotlight-head">
         <span class="badge ${cls}">${tag}</span>
         <span class="spotlight-name" style="color:${f.color}">${f.name}</span>
-        <span class="spotlight-title">${f.title}</span>
+        <span class="spotlight-faction ${faction.cls}">${faction.name}</span>
       </div>
+      <div class="spotlight-subtitle">${f.title}</div>
       <p class="spotlight-bio">${f.bio}</p>
       <div class="spotlight-stat-bars">
         <div class="stat-bar-item">
@@ -512,6 +525,8 @@ function renderSpotlight(container, playerIndex, fighterId, { isPreview = false,
       </ul>
     </div>
   `;
+
+  container.innerHTML = playerIndex === 1 ? `${posterHtml}${infoHtml}` : `${infoHtml}${posterHtml}`;
 }
 
 function updateSpotlights({ animateSlot = 0 } = {}) {
@@ -548,29 +563,59 @@ function renderSelectScreen({ animateSlot = 0 } = {}) {
   const visibleFighters = getVisibleFighters();
   if (kbdCursorIdx >= visibleFighters.length) kbdCursorIdx = 0;
 
-  visibleFighters.forEach((fighter, idx) => {
-    const isP1 = selectedP1 === fighter.id;
-    const isP2 = selectedP2 === fighter.id;
-    const justLocked = lastLockedId === fighter.id;
-    const card = document.createElement('div');
-    card.className = `poster-card ${isP1 ? 'pick-p1' : ''} ${isP2 ? 'pick-p2' : ''} ${justLocked ? 'just-locked' : ''}`;
-    card.dataset.id = fighter.id;
-    card.dataset.index = String(idx);
+  const groupsToShow = FACTION_GROUPS.filter(
+    (g) => activeGroup === 'ALL' || g.id === activeGroup
+  );
+  rosterGrid.classList.toggle('is-single-group', groupsToShow.length === 1);
 
-    card.innerHTML = `
-      <div class="poster-thumb">
-        ${createPosterImgHtml(fighter)}
-        <div class="poster-tags">
-          ${isP1 ? '<span class="poster-tag p1">1P</span>' : ''}
-          ${isP2 ? '<span class="poster-tag p2">2P</span>' : ''}
-        </div>
-      </div>
-      <div class="poster-footer">
-        <strong style="color:${fighter.color}">${fighter.name}</strong>
-        <span>${fighter.title}</span>
-      </div>
+  let cardIndex = 0;
+  groupsToShow.forEach((group) => {
+    const members = visibleFighters.filter((f) => f.group === group.id);
+    if (!members.length) return;
+
+    const section = document.createElement('div');
+    section.className = `faction-group ${group.cls}`;
+
+    const header = document.createElement('div');
+    header.className = 'faction-group-header';
+    header.innerHTML = `
+      <span class="faction-dot" style="background:${group.color}"></span>
+      <strong>${group.name}</strong>
+      <span class="faction-count">${members.length} 人</span>
     `;
-    rosterGrid.appendChild(card);
+    section.appendChild(header);
+
+    const cardsWrap = document.createElement('div');
+    cardsWrap.className = 'faction-cards';
+
+    members.forEach((fighter) => {
+      const isP1 = selectedP1 === fighter.id;
+      const isP2 = selectedP2 === fighter.id;
+      const justLocked = lastLockedId === fighter.id;
+      const card = document.createElement('div');
+      card.className = `poster-card ${isP1 ? 'pick-p1' : ''} ${isP2 ? 'pick-p2' : ''} ${justLocked ? 'just-locked' : ''}`;
+      card.dataset.id = fighter.id;
+      card.dataset.index = String(cardIndex);
+      cardIndex += 1;
+
+      card.innerHTML = `
+        <div class="poster-thumb">
+          ${createPosterImgHtml(fighter)}
+          <div class="poster-tags">
+            ${isP1 ? '<span class="poster-tag p1">1P</span>' : ''}
+            ${isP2 ? '<span class="poster-tag p2">2P</span>' : ''}
+          </div>
+        </div>
+        <div class="poster-footer">
+          <strong style="color:${fighter.color}">${fighter.name}</strong>
+          <span>${fighter.title}</span>
+        </div>
+      `;
+      cardsWrap.appendChild(card);
+    });
+
+    section.appendChild(cardsWrap);
+    rosterGrid.appendChild(section);
   });
   lastLockedId = null;
 }
@@ -692,11 +737,18 @@ function enterSelectScreen(group = 'ALL') {
 }
 
 enterSelectBtn.addEventListener('click', () => enterSelectScreen('ALL'));
-
-document.querySelectorAll('.cover-factions .faction-pill').forEach((pill) => {
-  pill.addEventListener('click', () => {
-    enterSelectScreen(pill.dataset.group || 'ALL');
-  });
+twoPlayerBtn?.addEventListener('click', () => enterSelectScreen('ALL'));
+singlePlayerBtn?.addEventListener('click', () => {
+  sfx.tick();
+  if (coverModeNote) {
+    coverModeNote.textContent = '单人 AI 模式正在开发中，请先选择「双人模式」或「开始游戏」体验本地对战';
+    coverModeNote.hidden = false;
+    coverModeNote.classList.remove('hidden');
+  }
+});
+coverSettingsBtn?.addEventListener('click', () => {
+  sfx.tick();
+  setPaused(true);
 });
 
 backCoverBtn.addEventListener('click', () => {
