@@ -24,7 +24,7 @@ export class ISFP extends FighterBase {
       speed: 340,
       jumpForce: 660,
       skillCdMax: 3.4,
-      spriteHeight: 128,
+      spriteHeight: 94,
       spriteFootOffset: 0,
       sprites: {
         idle: { src: 'assets/fighters/isfp/frames/idle_sheet.png', frames: 4, fps: 6, loop: true, trimToContent: true },
