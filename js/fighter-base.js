@@ -41,6 +41,8 @@ export class FighterBase {
     this.dashDir = this.facing;
     this.guarding = false;
     this.dropThroughTimer = 0;
+    this.chargeState = null; // { slot: 'skill1'|'skill2', elapsed, maxDuration, level, color, dir }
+    this._chargeWaitRelease = { skill1: false, skill2: false };
     this.ultimateAnimTimer = 0;
     this.ultimateAnimDuration = 0;
     this.hitFlashTimer = 0;
@@ -388,6 +390,115 @@ export class FighterBase {
   }
 
   /**
+   * 通用蓄力小技能状态机：子类只需调用 updateChargeSkill(...) 并重写 onChargeSkillRelease(...)
+   * 返回 true 表示角色当前正处于蓄力中（用于锁定移动或其它动作）
+   */
+  updateChargeSkill(dt, input, opponent, context, options = {}) {
+    const {
+      canStart = true,
+      maxDuration = 1.05,
+      lv2Time = 0.42,
+      lv3Time = 0.95,
+      canUseSlot = () => true,
+      getSlotColor = () => this.color
+    } = options;
+
+    if (!input.skill1Held) this._chargeWaitRelease.skill1 = false;
+    if (!input.skill2Held) this._chargeWaitRelease.skill2 = false;
+
+    if (this.hitstunTimer > 0 || this.statusEffects.exhausted > 0 || this.ultimateAnimTimer > 0) {
+      this.chargeState = null;
+      return false;
+    }
+
+    const readAimDir = () => {
+      const horiz = Number(Boolean(input.right)) - Number(Boolean(input.left));
+      if (input.upHeld || input.up) return 'up';
+      if (input.guard) return 'down';
+      if (horiz !== 0) return horiz === this.facing ? 'forward' : 'back';
+      return null;
+    };
+
+    if (this.chargeState) {
+      const cs = this.chargeState;
+      const stillHeld = cs.slot === 'skill1' ? Boolean(input.skill1Held) : Boolean(input.skill2Held);
+      const aimed = readAimDir();
+      if (aimed) cs.dir = aimed;
+      cs.elapsed = Math.min(cs.maxDuration, cs.elapsed + dt);
+      const nextLevel = cs.elapsed >= lv3Time ? 3 : cs.elapsed >= lv2Time ? 2 : 1;
+      if (nextLevel > cs.level) {
+        cs.level = nextLevel;
+        context.sfx?.chargeStep(nextLevel);
+        context.spawnHitSpark?.(
+          this.getCenterX(),
+          this.getCenterY(),
+          nextLevel === 3 ? '#fef08a' : cs.color,
+          nextLevel === 3 ? 'heavy' : 'light',
+          this.facing
+        );
+      }
+      // 蓄力过程向内汇聚能量微粒
+      if (Math.random() < (cs.level === 3 ? 0.55 : 0.28) && context.spawnParticles) {
+        context.spawnParticles(
+          this.getCenterX() + (Math.random() - 0.5) * 44,
+          this.getCenterY() + (Math.random() - 0.5) * 44,
+          cs.level === 3 ? '#fef08a' : cs.color,
+          1
+        );
+      }
+      if (!stillHeld) {
+        const chargeInfo = {
+          level: cs.level,
+          ratio: Math.min(1, cs.elapsed / Math.max(0.01, cs.maxDuration)),
+          dir: cs.dir || 'neutral'
+        };
+        const slot = cs.slot;
+        this.chargeState = null;
+        this._chargeWaitRelease[slot] = true;
+        this.onChargeSkillRelease(slot, chargeInfo, opponent, context);
+      }
+      return Boolean(this.chargeState);
+    }
+
+    if (canStart) {
+      const wantSkill1 = Boolean(input.skill1 || (input.skill1Held && !this._chargeWaitRelease.skill1));
+      const wantSkill2 = Boolean(input.skill2 || (input.skill2Held && !this._chargeWaitRelease.skill2));
+      if (wantSkill1 && canUseSlot('skill1')) {
+        this.chargeState = {
+          slot: 'skill1',
+          elapsed: 0,
+          maxDuration,
+          level: 1,
+          color: getSlotColor('skill1'),
+          dir: readAimDir() || 'neutral'
+        };
+        this.vx = 0;
+        return true;
+      }
+      if (wantSkill2 && canUseSlot('skill2')) {
+        this.chargeState = {
+          slot: 'skill2',
+          elapsed: 0,
+          maxDuration,
+          level: 1,
+          color: getSlotColor('skill2'),
+          dir: readAimDir() || 'neutral'
+        };
+        this.vx = 0;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 蓄力小技能释放钩子（各角色子类重写以实现完全不同的专属效果与方向派生）
+   */
+  onChargeSkillRelease(_slot, _chargeInfo, opponent, context) {
+    this.useSkill(opponent, context);
+  }
+
+  /**
    * 默认近战普攻（子类可重写为激光、弹幕、冲刺等）
    */
   useBasicAttack(opponent, context) {
@@ -475,6 +586,32 @@ export class FighterBase {
 
       // 子类专属配件与表情
       this.drawCustom(ctx, halfW, halfH);
+    }
+
+    // 通用蓄力小技能聚能光环与进度弧（所有角色共享，颜色随角色与档位变化）
+    if (this.chargeState) {
+      const cs = this.chargeState;
+      const ratio = Math.min(1, cs.elapsed / Math.max(0.01, cs.maxDuration));
+      const now = performance.now();
+      const ringColor = cs.level >= 3 ? '#facc15' : cs.level === 2 ? '#38bdf8' : cs.color;
+      ctx.save();
+      // 聚能呼吸光圈
+      const pulse = 1 + Math.sin(now / (cs.level >= 3 ? 55 : 95)) * 0.08;
+      ctx.strokeStyle = ringColor;
+      ctx.globalAlpha = 0.45 + ratio * 0.45;
+      ctx.lineWidth = cs.level >= 3 ? 4 : 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, (Math.max(halfW, halfH) + 12) * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 头顶蓄力进度圆弧
+      ctx.globalAlpha = 0.92;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, -halfH - 20, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // 通用格挡护盾光弧（非 ENFJ 时显示）

@@ -90,17 +90,19 @@ export class ENFJ extends GenericMBTIFighter {
     this.jumpStartupTimer = Math.max(0, this.jumpStartupTimer - dt);
     this.landingTimer = Math.max(0, this.landingTimer - dt);
     const wasGrounded = this.onGround;
+    const wantCharge1 = Boolean((input.skill1 || (input.skill1Held && !this._chargeWaitRelease?.skill1)) && this.skillCd <= 0);
+    const wantCharge2 = Boolean((input.skill2 || (input.skill2Held && !this._chargeWaitRelease?.skill2)) && this.buffCooldown <= 0);
+    const startingCharge = wantCharge1 || wantCharge2;
     const locked = Boolean(this.combo || this.dashElapsed !== null || this.buffCastElapsed !== null
-      || this.waveCastElapsed !== null || this.ultimateAnimTimer > 0);
-    this.guarding = Boolean(input.guard && !locked && this.hitstunTimer <= 0);
-    const triggerSkill1 = Boolean(input.skill1 ?? input.rangedAttack);
-    const triggerSkill2 = Boolean(input.skill2 ?? input.special);
+      || this.waveCastElapsed !== null || this.chargeState || this.ultimateAnimTimer > 0);
+    // 按下 U/I 蓄力时优先进入蓄力，不被防御（S/↓）或跳跃（W/↑）抢占输入
+    this.guarding = Boolean(input.guard && !locked && !startingCharge && this.hitstunTimer <= 0);
     super.update(dt, {
-      left: !locked && !this.guarding && input.left,
-      right: !locked && !this.guarding && input.right,
-      up: !locked && !this.guarding && input.up,
+      left: !locked && !this.guarding && !startingCharge && input.left,
+      right: !locked && !this.guarding && !startingCharge && input.right,
+      up: !locked && !this.guarding && !startingCharge && input.up,
       attack: false,
-      skill: !locked && !this.guarding && triggerSkill1,
+      skill: false,
       ultimate: !locked && !this.guarding && input.ultimate
     }, opponent, context);
     if (wasGrounded && !this.onGround) this.jumpStartupTimer = 5 / 60;
@@ -160,7 +162,7 @@ export class ENFJ extends GenericMBTIFighter {
     if (this.buffCastElapsed !== null) {
       this.buffCastElapsed += dt * 60;
       if (this.buffCastElapsed >= 22) {
-        this.buffTimer = 10;
+        this.buffTimer = this.buffDurationNext || 10;
         this.buffCastElapsed = null;
       } else this.showFrame('buff', Math.floor(this.buffCastElapsed));
       return;
@@ -175,6 +177,21 @@ export class ENFJ extends GenericMBTIFighter {
       return;
     }
     this.guardElapsed = 0;
+
+    // ENFJ 专属蓄力小技能系统（U 耀光剑气支持方向派生，I 气焰共鸣支持爆发震荡）
+    const charging = this.updateChargeSkill(dt, input, opponent, context, {
+      canStart: !locked,
+      canUseSlot: (slot) => (slot === 'skill1' ? this.skillCd <= 0 : this.buffCooldown <= 0),
+      getSlotColor: (slot) => (slot === 'skill1' ? '#a3e635' : '#bef264')
+    });
+    if (charging && this.chargeState) {
+      if (this.chargeState.slot === 'skill1') {
+        this.showFrame('skill', 2 + (Math.floor(this.chargeState.elapsed * 10) % 3));
+      } else {
+        this.showFrame('buff', 6 + (Math.floor(this.chargeState.elapsed * 12) % 6));
+      }
+      return;
+    }
 
     if (this.jumpStartupTimer > 0) {
       this.showFrame('jumpStartup', Math.floor((5 / 60 - this.jumpStartupTimer) * 60));
@@ -195,14 +212,6 @@ export class ENFJ extends GenericMBTIFighter {
       context.sfx?.dash();
       context.spawnAfterimage?.(this, '#84cc16');
       this.showFrame('dash', 0);
-    } else if (triggerSkill2 && this.buffCooldown <= 0) {
-      this.buffCastElapsed = 0;
-      this.buffCooldown = 12;
-      this.applyStatus('superArmor', 0.12);
-      this.vx = 0;
-      context.sfx?.buff();
-      context.spawnHitSpark?.(this.getCenterX(), this.getCenterY(), '#bef264', 'heavy', this.facing);
-      this.showFrame('buff', 0);
     } else if (input.lightAttack && this.comboCooldown <= 0) {
       context.sfx?.whoosh(false);
       this.startCombo('light');
@@ -210,6 +219,82 @@ export class ENFJ extends GenericMBTIFighter {
       context.sfx?.whoosh(true);
       this.startCombo('heavy');
     }
+  }
+
+  onChargeSkillRelease(slot, chargeInfo, opponent, context) {
+    if (slot === 'skill1') {
+      this.skillCd = this.skillCdMax;
+      this.pendingWaveCharge = chargeInfo;
+      this.waveCastElapsed = 0;
+      this.waveShotsFired = 0;
+      this.vx = 0;
+      // 释放瞬间弹出派生提示，手感更明确
+      const castCallout = chargeInfo.dir === 'up'
+        ? '对空扇形剑气!'
+        : chargeInfo.dir === 'down'
+          ? '裂地升空剑气!'
+          : chargeInfo.dir === 'back'
+            ? '后撤反击!'
+            : chargeInfo.level === 3
+              ? '满蓄 · 耀光巨剑气!'
+              : chargeInfo.level === 2
+                ? '蓄力剑气!'
+                : '';
+      if (castCallout) {
+        context.spawnFloatingText(
+          this.getCenterX(),
+          this.y - 20,
+          castCallout,
+          chargeInfo.level === 3 ? '#facc15' : '#84cc16'
+        );
+      }
+      // 后方向派生：后撤滑步拉开距离再发牵制剑气
+      if (chargeInfo.dir === 'back') {
+        const leftBound = context.stageLeft ?? 12;
+        const rightBound = (context.stageRight ?? context.arenaWidth - 12) - this.width;
+        context.spawnAfterimage?.(this, '#84cc16');
+        this.x = Math.max(leftBound, Math.min(rightBound, this.x - this.facing * 88));
+        context.sfx?.dash();
+      }
+      this.showFrame('skill', 0);
+      return;
+    }
+
+    // slot === 'skill2'：气焰共鸣（蓄力 2/3 档爆发耀光震荡波，满蓄额外回血回能）
+    this.buffCastElapsed = 0;
+    this.buffCooldown = 12;
+    this.buffDurationNext = chargeInfo.level === 3 ? 15 : chargeInfo.level === 2 ? 12.5 : 10;
+    this.applyStatus('superArmor', chargeInfo.level >= 2 ? 0.35 : 0.12);
+    this.vx = 0;
+    context.sfx?.buff();
+    context.spawnHitSpark?.(
+      this.getCenterX(),
+      this.getCenterY(),
+      chargeInfo.level === 3 ? '#fef08a' : '#bef264',
+      chargeInfo.level >= 2 ? 'ultimate' : 'heavy',
+      this.facing
+    );
+    if (chargeInfo.level >= 2 && opponent) {
+      const dist = Math.hypot(opponent.getCenterX() - this.getCenterX(), opponent.getCenterY() - this.getCenterY());
+      const radius = chargeInfo.level === 3 ? 185 : 135;
+      if (dist <= radius) {
+        const pushDir = opponent.getCenterX() >= this.getCenterX() ? 1 : -1;
+        opponent.takeDamage(
+          chargeInfo.level === 3 ? 14 : 9,
+          pushDir * (chargeInfo.level === 3 ? 460 : 320),
+          chargeInfo.level === 3 ? -260 : -180,
+          this,
+          context,
+          chargeInfo.level === 3 ? '满蓄气焰爆发!' : '气焰震荡!'
+        );
+      }
+    }
+    if (chargeInfo.level === 3) {
+      this.hp = Math.min(this.maxHp, this.hp + 10);
+      this.gainEp(15);
+      context.spawnFloatingText(this.getCenterX(), this.y - 24, '满蓄共鸣 +10HP +15EP', '#fef08a');
+    }
+    this.showFrame('buff', 0);
   }
 
   startCombo(kind) {
@@ -349,34 +434,69 @@ export class ENFJ extends GenericMBTIFighter {
   }
 
   releaseSwordWave(context, index) {
-    context.sfx?.whoosh(index === 2);
-    const width = 42;
-    const height = 50;
+    const charge = this.pendingWaveCharge || { level: 1, dir: 'neutral' };
+    const lv = charge.level || 1;
+    const scale = lv === 3 ? 1.48 : lv === 2 ? 1.24 : 1;
+    context.sfx?.whoosh(lv >= 2 || index === 2);
+
+    const width = Math.round(42 * scale);
+    const height = Math.round(50 * scale);
     const image = this.waveImage;
     const direction = this.facing;
+    const speedBase = lv === 3 ? 620 : lv === 2 ? 540 : 470;
+    const isUp = charge.dir === 'up';
+    const isDown = charge.dir === 'down';
+    const vx = direction * (isUp ? speedBase * 0.72 : speedBase + index * 28);
+    const vy = isUp ? -(220 + index * 115) : 0;
+    const startY = isDown
+      ? context.groundY - height
+      : this.y + [4, 15, 26][index] - (height - 50) * 0.5;
+    if (isDown && context.spawnParticles) {
+      context.spawnParticles(direction === 1 ? this.x + this.width + 12 : this.x - 12, context.groundY - 6, '#bef264', 6);
+    }
+    const damage = lv === 3 ? 10 : lv === 2 ? 7 : 5;
+    const knockbackX = lv === 3 ? 280 : lv === 2 ? 190 : 125;
+    const knockbackY = isDown ? -310 : isUp ? -240 : (lv === 3 ? -160 : -85);
+    const hitLabel = isUp
+      ? '对空斜斩剑气!'
+      : isDown
+        ? '裂地升空剑气!'
+        : charge.dir === 'back'
+          ? '后撤反击剑气!'
+          : lv === 3
+            ? '满蓄耀光巨剑气!'
+            : lv === 2
+              ? '强化剑气!'
+              : '三连剑气!';
+
     context.spawnProjectile({
       owner: this,
       x: direction === 1 ? this.x + this.width + 2 : this.x - width - 2,
-      y: this.y + [4, 15, 26][index],
+      y: startY,
       width, height,
-      vx: direction * (470 + index * 24),
+      vx, vy,
       direction,
-      lifetime: 1.15,
-      damage: 5,
-      knockbackX: 125,
-      knockbackY: -85,
-      hitLabel: '三连剑气!',
+      scale,
+      isUp,
+      isGold: lv >= 3,
+      lifetime: lv === 3 ? 1.45 : 1.15,
+      damage,
+      knockbackX,
+      knockbackY,
+      hitLabel,
       draw(ctx) {
         ctx.save();
         ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
         ctx.scale(this.direction, 1);
+        if (this.isUp) ctx.rotate(-0.52);
+        if (this.isGold) ctx.filter = 'brightness(1.25) drop-shadow(0 0 8px #facc15)';
         if (image.complete && image.naturalWidth > 0) {
-          ctx.drawImage(image, -26, -30, 52, 60);
+          ctx.drawImage(image, -26 * this.scale, -30 * this.scale, 52 * this.scale, 60 * this.scale);
         } else {
           ctx.beginPath();
-          ctx.arc(4, 0, 23, Math.PI * 0.62, Math.PI * 1.38, true);
-          ctx.strokeStyle = '#a3e635';
-          ctx.lineWidth = 7;
+          ctx.arc(4, 0, 23 * this.scale, Math.PI * 0.62, Math.PI * 1.38, true);
+          ctx.strokeStyle = this.isGold ? '#facc15' : '#a3e635';
+          ctx.lineWidth = 7 * this.scale;
           ctx.stroke();
         }
         ctx.restore();

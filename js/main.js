@@ -377,11 +377,12 @@ function getPlayerInput(playerIndex) {
   const down = (action) => check(keysDown, binds[action]);
   const pressed = (action) => check(keysJustPressed, binds[action]);
 
-  // 全角色唯一统一输入协议（含小技能长按蓄力状态）
+  // 全角色唯一统一输入协议（含小技能长按蓄力与上方向按住状态）
   return {
     left: down('left'),
     right: down('right'),
     up: pressed('up'),
+    upHeld: down('up'),
     guard: down('guard'),
     lightAttack: pressed('lightAttack'),
     heavyAttack: pressed('heavyAttack'),

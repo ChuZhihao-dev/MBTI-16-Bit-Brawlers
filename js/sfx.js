@@ -158,6 +158,14 @@ class ArcadeSFX {
     });
   }
 
+  chargeStep(level = 2) {
+    const base = level >= 3 ? 880 : 520;
+    this._tone({ freq: base, endFreq: base * 1.35, type: 'triangle', duration: 0.11, gain: 0.075 });
+    if (level >= 3) {
+      this._tone({ freq: 1320, endFreq: 1760, type: 'sine', duration: 0.16, gain: 0.085, delay: 0.03 });
+    }
+  }
+
   ultimate() {
     this._tone({ freq: 196, endFreq: 784, type: 'sawtooth', duration: 0.24, gain: 0.09 });
     this._tone({ freq: 587, endFreq: 1174, type: 'square', duration: 0.18, gain: 0.07, delay: 0.14 });

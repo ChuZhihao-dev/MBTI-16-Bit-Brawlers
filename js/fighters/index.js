@@ -2,7 +2,7 @@ import { INTJ } from './intj.js';
 import { INFJ } from './infj.js';
 import { ENTP } from './entp.js';
 import { ENFP } from './enfp.js';
-import { ENFJ } from './enfj.js';
+import { ENFJ } from './enfj.js?v=20261123-15';
 import { ISFP } from './isfp.js';
 import { GenericMBTIFighter, MBTI_16_DATA } from './roster-16.js';
 
